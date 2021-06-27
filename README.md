@@ -5,7 +5,7 @@ Secure symmetric encryption from the command line
 
 ## Features
 
-* Fast: written in [rust](https://www.rust-lang.org), encrypts with [AES-256-CTR](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR))
+* Fast: written in [rust](https://www.rust-lang.org), encrypts with [AES-256-CTR](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR)) or [XChaCha20](https://en.wikipedia.org/wiki/Salsa20#XChaCha)
 * [HMAC](https://en.wikipedia.org/wiki/HMAC) ciphertext authentication
 * Password brute-force resistance with [Argon2](https://en.wikipedia.org/wiki/Argon2)
 * Encryption from STDIN/STDOUT or from files
@@ -71,8 +71,9 @@ FLAGS:
     -V, --version          Prints version information
 
 OPTIONS:
-    -p, --password <password>          
+    -p, --password <password>          Password used to derive encryption keys
     -b, --block-size <blocksize>       Size of file chunk (in bytes) [default: 65536]
+    -c, --cipher <cipher>              Encryption cipher to use [possible values: aes, xchacha20]
     -m, --memory-cost <memory cost>    Argon2 memory cost (in kilobytes) [default: 4096]
     -t, --threads <threads>            Argon2 parallelism (between 1 and 255) [default: 4]
     -i, --iterations <iterations>      Argon2 time cost [default: 10]
@@ -141,15 +142,16 @@ hmac.update(argon2_time_cost);
 hmac.update(argon2_memory_cost);
 hmac.update(argon2_parallelism);
 hmac.update(random_hkdf_salt);
-hmac.update(random_nonce); //16 bytes random nonce used in AES-CTR cipher
+hmac.update(cipher); //1-byte representation of the symmetric cipher used to encrypt (either AES-CTR or XChaCha20)
+hmac.update(random_nonce); //random nonce used for encryption (16 bytes for AES-CTR, 24 for XChaCha20)
 ```
 
 All this parameters are also written in plain text in the header of the doby output.
 
-Now, doby initializes an AES-CTR cipher with `encryption_key` and `random_nonce` and starts the actual encryption. It reads chunks from the plaintext (according to the `--block-size` parameter), encrypts them with the cipher and updates the HMAC with the ciphertext.
+Now, doby initializes a symmetric cipher with `encryption_key` and `random_nonce` (either AES-CTR or XChaCha20, based on the `--cipher` option) and starts the actual encryption. It reads chunks from the plaintext (according to the `--block-size` parameter), encrypts them with the cipher and updates the HMAC with the ciphertext.
 
 ```rust
-let cipher = Aes256Ctr::new(encryption_key, random_nonce);
+let cipher = Aes256Ctr::new(encryption_key, random_nonce); //example with AES-CTR
 let mut n = 1;
 let mut chunk: [u8; block_size] = [0; block_size];
 while n != 0 {
@@ -185,7 +187,7 @@ let master_key: [u8; 32] = argon2id(
 Then, doby starts decryption.
 
 ```rust
-let cipher = Aes256Ctr::new(encryption_key, nonce_read_from_input);
+let cipher = XChaCha20::new(encryption_key, nonce_read_from_input); //example with XChaCha20
 let mut n = 1;
 let mut chunk: [u8; block_size] = [0; block_size];
 while n != 0 {

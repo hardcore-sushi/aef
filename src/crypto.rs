@@ -1,4 +1,6 @@
-use std::io::{self, Read, Write};
+use std::{convert::TryFrom, io::{self, Read, Write}};
+use num_enum::TryFromPrimitive;
+use chacha20::XChaCha20;
 use aes::{Aes256Ctr, cipher::{NewCipher, StreamCipher}};
 use hmac::{Hmac, Mac, NewMac};
 use rand::{Rng, rngs::OsRng};
@@ -7,7 +9,8 @@ use hkdf::Hkdf;
 use zeroize::Zeroize;
 
 const SALT_LEN: usize = 64;
-const NONCE_LEN: usize = 16;
+const AES_NONCE_LEN: usize = 16;
+const XCHACHA20_NONCE_LEN: usize = 24;
 const HASH_LEN: usize = 32;
 const KEY_LEN: usize = HASH_LEN;
 
@@ -17,28 +20,48 @@ pub struct ArgonParams {
     pub parallelism: u8,
 }
 
+#[derive(Clone, Copy, Debug, TryFromPrimitive)]
+#[repr(u8)]
+pub enum CipherAlgorithm {
+    AesCtr = 0,
+    XChaCha20 = 1,
+}
+
+impl CipherAlgorithm {
+    fn get_nonce_size(&self) -> usize {
+        match self {
+            CipherAlgorithm::AesCtr => AES_NONCE_LEN,
+            CipherAlgorithm::XChaCha20 => XCHACHA20_NONCE_LEN,
+        }
+    }
+}
+
 pub struct EncryptionParams {
     password_salt: [u8; SALT_LEN],
     argon2: ArgonParams,
     hkdf_salt: [u8; SALT_LEN],
-    nonce: [u8; NONCE_LEN],
+    nonce: Vec<u8>,
+    cipher: CipherAlgorithm,
 }
 
 impl EncryptionParams {
-    const PARAMS_LEN: usize = SALT_LEN*2 + 4*2 + 1 + NONCE_LEN;
+    fn get_params_len(&self) -> usize {
+        SALT_LEN*2 + 4*2 + 1 + self.cipher.get_nonce_size()
+    }
 
-    pub fn new(argon2_params: ArgonParams) -> EncryptionParams {
+    pub fn new(argon2_params: ArgonParams, cipher: CipherAlgorithm) -> EncryptionParams {
         let mut password_salt = [0; SALT_LEN];
         OsRng.fill(&mut password_salt);
         let mut hkdf_salt = [0; SALT_LEN];
         OsRng.fill(&mut hkdf_salt); 
-        let mut nonce = [0; NONCE_LEN];
-        OsRng.fill(&mut nonce);
+        let mut nonce = vec![0; cipher.get_nonce_size()];
+        OsRng.fill(&mut nonce[..]);
         EncryptionParams {
             password_salt,
             argon2: argon2_params,
             hkdf_salt,
             nonce,
+            cipher,
         }
     }
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -47,45 +70,54 @@ impl EncryptionParams {
         writer.write_all(&self.argon2.m_cost.to_be_bytes())?;
         writer.write_all(&self.argon2.parallelism.to_be_bytes())?;
         writer.write_all(&self.hkdf_salt)?;
+        writer.write_all(&(self.cipher as u8).to_be_bytes())?;
         writer.write_all(&self.nonce)?;
         Ok(())
     }
-    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Option<Self>> {
         let mut password_salt = [0; SALT_LEN];
         reader.read_exact(&mut password_salt)?;
-        let mut t_cost_buf = [0; 4];
-        reader.read_exact(&mut t_cost_buf)?;
-        let mut m_cost_buf = [0; 4];
-        reader.read_exact(&mut m_cost_buf)?;
-        let mut parallelism_buf = [0; 1];
-        reader.read_exact(&mut parallelism_buf)?;
+        let mut t_cost = [0; 4];
+        reader.read_exact(&mut t_cost)?;
+        let mut m_cost = [0; 4];
+        reader.read_exact(&mut m_cost)?;
+        let mut parallelism = [0; 1];
+        reader.read_exact(&mut parallelism)?;
         let mut hkdf_salt = [0; SALT_LEN];
         reader.read_exact(&mut hkdf_salt)?;
-        let mut nonce = [0; NONCE_LEN];
-        reader.read_exact(&mut nonce)?;
-    
-        let argon2_params = ArgonParams {
-            t_cost: u32::from_be_bytes(t_cost_buf),
-            m_cost: u32::from_be_bytes(m_cost_buf),
-            parallelism: u8::from_be_bytes(parallelism_buf),
-        };
-    
-        Ok(EncryptionParams {
-            password_salt,
-            argon2: argon2_params,
-            hkdf_salt,
-            nonce,
-        })
+        let mut cipher_buff = [0; 1];
+        reader.read_exact(&mut cipher_buff)?;
+        match CipherAlgorithm::try_from(cipher_buff[0]) {
+            Ok(cipher) => {
+                let mut nonce = vec![0; cipher.get_nonce_size()];
+                reader.read_exact(&mut nonce)?;
+
+                let argon2_params = ArgonParams {
+                    t_cost: u32::from_be_bytes(t_cost),
+                    m_cost: u32::from_be_bytes(m_cost),
+                    parallelism: u8::from_be_bytes(parallelism),
+                };
+
+                Ok(Some(EncryptionParams {
+                    password_salt,
+                    argon2: argon2_params,
+                    hkdf_salt,
+                    nonce,
+                    cipher,
+                }))
+            }
+            Err(_) => Ok(None)
+        }
     }
 }
 
-pub struct Cipher {
-    cipher: Aes256Ctr,
+pub struct DobyCipher {
+    cipher: Box<dyn StreamCipher>,
     hmac: Hmac<blake3::Hasher>,
     buffer: Vec<u8>,
 }
 
-impl Cipher {
+impl DobyCipher {
     pub fn new(password: &[u8], params: &EncryptionParams) -> Result<Self, argon2::Error> {
 
         let argon = Argon2::new(None, params.argon2.t_cost, params.argon2.m_cost, params.argon2.parallelism.into(), Version::V0x13)?;
@@ -99,13 +131,16 @@ impl Cipher {
         hkdf.expand(b"doby_authentication_key", &mut authentication_key).unwrap();
         master_key.zeroize();
 
-        let mut encoded_params = Vec::with_capacity(EncryptionParams::PARAMS_LEN);
+        let mut encoded_params = Vec::with_capacity(params.get_params_len());
         params.write(&mut encoded_params).unwrap();
         let mut hmac = Hmac::new_from_slice(&authentication_key).unwrap();
         hmac.update(&encoded_params);
 
-        Ok(Cipher {
-            cipher: Aes256Ctr::new_from_slices(&encryption_key, &params.nonce).unwrap(),
+        Ok(Self {
+            cipher: match params.cipher {
+                CipherAlgorithm::AesCtr => Box::new(Aes256Ctr::new_from_slices(&encryption_key, &params.nonce).unwrap()),
+                CipherAlgorithm::XChaCha20 => Box::new(XChaCha20::new_from_slices(&encryption_key, &params.nonce).unwrap()),
+            },
             hmac,
             buffer: Vec::new(),
         })
@@ -127,8 +162,8 @@ impl Cipher {
         buff[..buffer_len].clone_from_slice(&self.buffer);
         let read = reader.read(&mut buff[buffer_len..])?;
 
-        self.buffer.clear();
         let n = if buffer_len + read >= HASH_LEN {
+            self.buffer.clear();
             buffer_len + read - HASH_LEN
         } else {
             0

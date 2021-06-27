@@ -6,7 +6,7 @@ use std::{
 };
 use doby::{
     encrypt, decrypt,
-    crypto::{ArgonParams, EncryptionParams, Cipher}
+    crypto::{ArgonParams, EncryptionParams, CipherAlgorithm, DobyCipher}
 };
 
 const MAX_BLOCK_SIZE: usize = 1_073_741_824; //1GB
@@ -37,7 +37,7 @@ fn main() -> io::Result<()> {
         t_cost: 1,
         m_cost: 8,
         parallelism: 1,
-    });
+    }, CipherAlgorithm::AesCtr);
 
     let mut best_encrypt_time = None;
     let mut best_encrypt_block_size = None;
@@ -49,7 +49,7 @@ fn main() -> io::Result<()> {
         let mut reader = BufReader::with_capacity(block_size, &input);
         let mut writer = BufWriter::with_capacity(block_size, &output);
 
-        let cipher = Cipher::new(PASSWORD, &params).unwrap();
+        let cipher = DobyCipher::new(PASSWORD, &params).unwrap();
         let t_encrypt = Instant::now();
         encrypt(&mut reader, &mut writer, &params, cipher, block_size, None)?;
         writer.flush()?;
@@ -59,7 +59,7 @@ fn main() -> io::Result<()> {
         reset(&mut reader)?;
         reset(&mut writer)?;
 
-        let cipher = Cipher::new(PASSWORD, &params).unwrap();
+        let cipher = DobyCipher::new(PASSWORD, &params).unwrap();
         let t_decrypt = Instant::now();
         decrypt(&mut reader, &mut writer, cipher, block_size)?;
         writer.flush()?;

@@ -4,13 +4,16 @@ use std::{
     str::FromStr,
     io::{stdin, stdout, Read, Write},
 };
-use clap::{crate_name, crate_version, App, Arg};
-use crate::crypto::ArgonParams;
+use clap::{crate_name, crate_version, App, Arg, AppSettings};
+use crate::crypto::{ArgonParams, CipherAlgorithm};
+
+cpufeatures::new!(aes_ni, "aes");
 
 pub struct CliArgs {
     pub password: String,
     pub force_encrypt: bool,
     pub argon2_params: ArgonParams,
+    pub cipher: CipherAlgorithm,
     pub block_size: usize,
     pub reader: Box<dyn Read>,
     pub writer: Box<dyn Write>,
@@ -19,6 +22,7 @@ pub struct CliArgs {
 pub fn parse() -> Option<CliArgs> {
     let app = App::new(crate_name!())
         .version(crate_version!())
+        .setting(AppSettings::ColoredHelp)
         .arg(Arg::with_name("INPUT").help("<PATH> | \"-\" or empty for stdin"))
         .arg(Arg::with_name("OUTPUT").help("<PATH> | \"-\" or empty for stdout"))
         .arg(
@@ -32,6 +36,7 @@ pub fn parse() -> Option<CliArgs> {
                 .short("p")
                 .long("password")
                 .value_name("password")
+                .help("Password used to derive encryption keys")
         )
         .arg(
             Arg::with_name("t_cost")
@@ -64,6 +69,16 @@ pub fn parse() -> Option<CliArgs> {
                 .help("Size of file chunk (in bytes)")
                 .default_value("65536")
         )
+        .arg(
+            Arg::with_name("cipher")
+                .short("c")
+                .long("cipher")
+                .value_name("cipher")
+                .help("Encryption cipher to use")
+                .long_help("Encryption cipher to use. By default, AES is selected if AES-NI is supported. Otherwise, XChaCha20 is used.")
+                .possible_values(&["aes", "xchacha20"])
+                .case_insensitive(true)
+        )
         .get_matches();
 
     let params = {
@@ -77,6 +92,21 @@ pub fn parse() -> Option<CliArgs> {
             parallelism,
         }
     };
+
+    let cipher = app
+        .value_of("cipher")
+        .and_then(|s| Some(if s.to_lowercase() == "aes" {
+                CipherAlgorithm::AesCtr
+            } else {
+                CipherAlgorithm::XChaCha20
+            })
+        )
+        .unwrap_or_else(|| if aes_ni::get() {
+                CipherAlgorithm::AesCtr
+            } else {
+                CipherAlgorithm::XChaCha20
+            }
+        );
 
     let block_size = number(app.value_of("blocksize").unwrap())?;
 
@@ -97,7 +127,7 @@ pub fn parse() -> Option<CliArgs> {
                 Some(Box::new(File::create(s).unwrap()) as Box<dyn Write>)
             }
         })
-        .unwrap_or_else(|| Some(Box::new(stdout())));
+        .unwrap_or_else(|| Some(Box::new(stdout())))?;
 
     let password = match app.value_of("password") {
         Some(s) => s.to_string(),
@@ -108,9 +138,10 @@ pub fn parse() -> Option<CliArgs> {
         password,
         force_encrypt: app.is_present("force-encrypt"),
         argon2_params: params,
+        cipher,
         block_size,
         reader: input,
-        writer: output?,
+        writer: output,
     })
 }
 

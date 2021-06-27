@@ -2,11 +2,11 @@ pub mod cli;
 pub mod crypto;
 
 use std::io::{self, Read, Write};
-use crypto::{Cipher, EncryptionParams};
+use crypto::{DobyCipher, EncryptionParams};
 
 pub const MAGIC_BYTES: &[u8; 4] = b"DOBY";
 
-pub fn encrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, params: &EncryptionParams, mut cipher: Cipher, block_size: usize, already_read: Option<Vec<u8>>) -> io::Result<()> {
+pub fn encrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, params: &EncryptionParams, mut cipher: DobyCipher, block_size: usize, already_read: Option<Vec<u8>>) -> io::Result<()> {
     writer.write_all(MAGIC_BYTES)?;
     params.write(writer)?;
     let mut buff = vec![0; block_size];
@@ -30,7 +30,7 @@ pub fn encrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, params: &Encry
     Ok(())
 }
 
-pub fn decrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, mut cipher: Cipher, block_size: usize) -> io::Result<bool> {
+pub fn decrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, mut cipher: DobyCipher, block_size: usize) -> io::Result<bool> {
     let mut buff = vec![0; block_size];
     loop {
         let n = cipher.decrypt_chunk(reader, &mut buff)?;
