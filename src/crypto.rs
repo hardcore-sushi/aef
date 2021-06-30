@@ -1,4 +1,8 @@
-use std::{convert::TryFrom, io::{self, Read, Write}};
+use std::{
+    convert::TryFrom,
+    fmt::{self, Display, Formatter},
+    io::{self, Read, Write}
+};
 use num_enum::TryFromPrimitive;
 use chacha20::XChaCha20;
 use aes::{Aes256Ctr, cipher::{NewCipher, StreamCipher}};
@@ -37,13 +41,22 @@ impl CipherAlgorithm {
     }
 }
 
+impl Display for CipherAlgorithm {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            CipherAlgorithm::AesCtr => "AES-CTR",
+            CipherAlgorithm::XChaCha20 => "XChaCha20",
+        })
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct EncryptionParams {
     password_salt: [u8; SALT_LEN],
-    argon2: ArgonParams,
+    pub argon2: ArgonParams,
     hkdf_salt: [u8; SALT_LEN],
     nonce: Vec<u8>,
-    cipher: CipherAlgorithm,
+    pub cipher: CipherAlgorithm,
 }
 
 impl EncryptionParams {
