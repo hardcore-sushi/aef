@@ -1,9 +1,10 @@
-
 # doby
 
-Secure symmetric encryption from the command line
+Secure symmetric encryption from the command line.
 
-## Features
+doby started as a fork of [aef](https://github.com/wyhaya/aef) by [wyhaya](https://github.com/wyhaya). It aims to replace the [ccrypt](http://ccrypt.sourceforge.net) tool which is a bit old and not very secure.
+
+# Features
 
 * Fast: written in [rust](https://www.rust-lang.org), encrypts with [AES-256-CTR](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR)) or [XChaCha20](https://en.wikipedia.org/wiki/Salsa20#XChaCha)
 * [HMAC](https://en.wikipedia.org/wiki/HMAC) ciphertext authentication
@@ -11,10 +12,10 @@ Secure symmetric encryption from the command line
 * Encryption from STDIN/STDOUT or from files
 * Adjustable performance & secuity parameters
 
-## Disclamer
+# Disclamer
 doby is provided "as is", without any warranty of any kind. I'm not a professional cryptographer. This program didn't receive any security audit and therefore __shouldn't be considered fully secure__.
 
-## Usage
+# Usage
 
 Encryption
 
@@ -83,7 +84,7 @@ ARGS:
     <OUTPUT>    <PATH> | "-" or empty for stdout
 ```
 
-## Build
+# Build
 
 You should verify commits before building the binary. You can download my PGP key from keyservers:
 
@@ -102,7 +103,7 @@ git verify-commit HEAD
 cargo build --release #outputs to ./target/release/doby
 ```
 
-## Cryptographic details
+# Cryptographic details
 
 ### Encryption
 
