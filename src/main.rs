@@ -29,7 +29,7 @@ fn main() {
                                             match decrypt(&mut reader, &mut writer, cipher, cli_args.block_size) {
                                                 Ok(verified) => {
                                                     if !verified {
-                                                        eprintln!("WARNING: HMAC verification failed !\nEither your password is incorrect or the file has been corrupted.\nOpen with caution, it could have been infected by an attacker.");
+                                                        eprintln!("WARNING: HMAC verification failed !\nEither your password is incorrect or the ciphertext has been corrupted.\nBe careful, the data could have been altered by an attacker.");
                                                     }
                                                 }
                                                 Err(e) => eprintln!("I/O error while decrypting: {}", e)

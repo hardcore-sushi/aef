@@ -14,13 +14,14 @@ const XCHACHA20_NONCE_LEN: usize = 24;
 const HASH_LEN: usize = 32;
 const KEY_LEN: usize = HASH_LEN;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct ArgonParams {
     pub t_cost: u32,
     pub m_cost: u32,
     pub parallelism: u8,
 }
 
-#[derive(Clone, Copy, Debug, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u8)]
 pub enum CipherAlgorithm {
     AesCtr = 0,
@@ -36,6 +37,7 @@ impl CipherAlgorithm {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct EncryptionParams {
     password_salt: [u8; SALT_LEN],
     argon2: ArgonParams,
@@ -46,7 +48,7 @@ pub struct EncryptionParams {
 
 impl EncryptionParams {
     fn get_params_len(&self) -> usize {
-        SALT_LEN*2 + 4*2 + 1 + self.cipher.get_nonce_size()
+        SALT_LEN*2 + 4*2 + 2 + self.cipher.get_nonce_size()
     }
 
     pub fn new(argon2_params: ArgonParams, cipher: CipherAlgorithm) -> EncryptionParams {
@@ -119,7 +121,6 @@ pub struct DobyCipher {
 
 impl DobyCipher {
     pub fn new(password: &[u8], params: &EncryptionParams) -> Result<Self, argon2::Error> {
-
         let argon = Argon2::new(None, params.argon2.t_cost, params.argon2.m_cost, params.argon2.parallelism.into(), Version::V0x13)?;
         let mut master_key = [0; KEY_LEN];
         argon.hash_password_into(Algorithm::Argon2id, password, &params.password_salt, &[], &mut master_key)?;
@@ -157,6 +158,7 @@ impl DobyCipher {
         writer.write(&tag)
     }
 
+    //buff size must be > to HASH_LEN
     pub fn decrypt_chunk<R: Read>(&mut self, reader: &mut R, buff: &mut [u8]) -> io::Result<usize> {
         let buffer_len = self.buffer.len();
         buff[..buffer_len].clone_from_slice(&self.buffer);
@@ -177,5 +179,62 @@ impl DobyCipher {
 
     pub fn verify_hmac(self) -> bool {
         self.hmac.verify(&self.buffer).is_ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ArgonParams, CipherAlgorithm, EncryptionParams, DobyCipher, HASH_LEN};
+    #[test]
+    fn encryption_params() {
+        let params = EncryptionParams::new(ArgonParams {
+            t_cost: 1,
+            m_cost: 8,
+            parallelism: 1,
+        }, CipherAlgorithm::XChaCha20);
+
+        assert_eq!(params.get_params_len(), 162);
+
+        let mut buff = Vec::with_capacity(162);
+        params.write(&mut buff).unwrap();
+        assert_eq!(buff[..64], params.password_salt);
+        assert_eq!(buff[64..68], vec![0, 0, 0, 0x01]); //t_cost
+        assert_eq!(buff[68..72], vec![0, 0, 0, 0x08]); //m_cost
+        assert_eq!(buff[72], 0x01); //parallelism
+        assert_eq!(buff[73..137], params.hkdf_salt);
+        assert_eq!(buff[137], CipherAlgorithm::XChaCha20 as u8);
+        assert_eq!(buff[138..], params.nonce);
+
+        let new_params = EncryptionParams::read(&mut buff.as_slice()).unwrap().unwrap();
+        assert_eq!(new_params, params);
+    }
+
+    #[test]
+    fn doby_cipher() {
+        let params = EncryptionParams::new(ArgonParams {
+            t_cost: 1,
+            m_cost: 8,
+            parallelism: 1,
+        }, CipherAlgorithm::AesCtr);
+        let password = b"I like spaghetti";
+        let plaintext = b"but I love so much to listen to HARDCORE music on big subwoofer";
+        let mut buff: [u8; 63] = *plaintext;
+        let mut vec = Vec::with_capacity(buff.len()+HASH_LEN);
+
+        let mut enc_cipher = DobyCipher::new(password, &params).unwrap();
+        enc_cipher.encrypt_chunk(&mut buff, &mut vec).unwrap();
+        assert_ne!(buff, *plaintext);
+        assert_eq!(buff, vec.as_slice());
+        assert_eq!(enc_cipher.write_hmac(&mut vec).unwrap(), HASH_LEN);
+        assert_eq!(vec.len(), buff.len()+HASH_LEN);
+
+        let mut dec_cipher = DobyCipher::new(password, &params).unwrap();
+        let mut decrypted = vec![0; buff.len()+HASH_LEN];
+        let mut n  = dec_cipher.decrypt_chunk(&mut vec.as_slice(), &mut decrypted[..]).unwrap();
+        assert_eq!(n, buff.len());
+        n = dec_cipher.decrypt_chunk(&mut &vec[n..], &mut decrypted[n..]).unwrap();
+        assert_eq!(n, 0);
+        assert_eq!(decrypted[..buff.len()], *plaintext);
+        assert_eq!(dec_cipher.verify_hmac(), true);
     }
 }
