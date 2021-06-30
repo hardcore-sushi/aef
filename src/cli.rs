@@ -23,6 +23,7 @@ pub fn parse() -> Option<CliArgs> {
     let app = App::new(crate_name!())
         .version(crate_version!())
         .setting(AppSettings::ColoredHelp)
+        .about("Secure symmetric encryption from the command line.")
         .arg(Arg::with_name("INPUT").help("<PATH> | \"-\" or empty for stdin"))
         .arg(Arg::with_name("OUTPUT").help("<PATH> | \"-\" or empty for stdout"))
         .arg(
@@ -32,14 +33,14 @@ pub fn parse() -> Option<CliArgs> {
                 .help(&format!("Encrypt even if {} format is recognized", crate_name!()))
         )
         .arg(
-            Arg::with_name("password")
+            Arg::with_name("1_password")
                 .short("p")
                 .long("password")
                 .value_name("password")
                 .help("Password used to derive encryption keys")
         )
         .arg(
-            Arg::with_name("t_cost")
+            Arg::with_name("2_t_cost")
                 .short("i")
                 .long("iterations")
                 .value_name("iterations")
@@ -47,7 +48,7 @@ pub fn parse() -> Option<CliArgs> {
                 .default_value("10")
         )
         .arg(
-            Arg::with_name("m_cost")
+            Arg::with_name("3_m_cost")
                 .short("m")
                 .long("memory-cost")
                 .value_name("memory cost")
@@ -55,7 +56,7 @@ pub fn parse() -> Option<CliArgs> {
                 .default_value("4096")
         )
         .arg(
-            Arg::with_name("parallelism")
+            Arg::with_name("4_parallelism")
                 .short("t")
                 .long("threads")
                 .value_name("threads")
@@ -82,9 +83,9 @@ pub fn parse() -> Option<CliArgs> {
         .get_matches();
 
     let params = {
-        let t_cost = number(app.value_of("t_cost").unwrap())?;
-        let m_cost =  number(app.value_of("m_cost").unwrap())?;
-        let parallelism =  number(app.value_of("parallelism").unwrap())?;
+        let t_cost = number(app.value_of("2_t_cost").unwrap())?;
+        let m_cost =  number(app.value_of("3_m_cost").unwrap())?;
+        let parallelism =  number(app.value_of("4_parallelism").unwrap())?;
 
         ArgonParams {
             t_cost,
@@ -129,7 +130,7 @@ pub fn parse() -> Option<CliArgs> {
         })
         .unwrap_or_else(|| Some(Box::new(stdout())))?;
 
-    let password = match app.value_of("password") {
+    let password = match app.value_of("1_password") {
         Some(s) => s.to_string(),
         None => rpassword::read_password_from_tty(Some("Password: ")).unwrap(),
     };
