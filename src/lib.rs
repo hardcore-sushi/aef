@@ -1,7 +1,7 @@
 pub mod cli;
 pub mod crypto;
 
-use std::io::{self, Read, Write};
+use std::{fs::File, path::Path, io::{self, Read, Write}};
 use crypto::{DobyCipher, EncryptionParams};
 use zeroize::Zeroize;
 
@@ -30,6 +30,39 @@ impl From<&str> for Password {
 impl Zeroize for Password {
     fn zeroize(&mut self) {
         self.0.zeroize()
+    }
+}
+
+pub struct LazyWriter<P: AsRef<Path>> {
+    path: Option<P>,
+    writer: Option<Box<dyn Write>>,
+}
+
+impl<P: AsRef<Path>> LazyWriter<P> {
+    fn from_path(path: P) -> Self {
+        Self {
+            path: Some(path),
+            writer: None,
+        }
+    }
+    fn from_writer<T: 'static + Write>(writer: T) -> Self {
+        Self {
+            path: None,
+            writer: Some(Box::new(writer)),
+        }
+    }
+}
+
+impl<P: AsRef<Path>> Write for LazyWriter<P> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if self.writer.is_none() {
+            self.writer = Some(Box::new(File::create(self.path.as_ref().unwrap()).unwrap()));
+        }
+        self.writer.as_mut().unwrap().write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.writer.as_mut().unwrap().flush()
     }
 }
 

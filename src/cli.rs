@@ -2,10 +2,10 @@ use std::{
     path::Path,
     fs::File,
     str::FromStr,
-    io::{stdin, stdout, Read, Write},
+    io::{stdin, stdout, Read},
 };
 use clap::{crate_name, crate_version, App, Arg, AppSettings};
-use crate::{Password, crypto::{ArgonParams, CipherAlgorithm}};
+use crate::{LazyWriter, Password, crypto::{ArgonParams, CipherAlgorithm}};
 
 cpufeatures::new!(aes_ni, "aes");
 
@@ -16,7 +16,7 @@ pub struct CliArgs {
     pub cipher: CipherAlgorithm,
     pub block_size: usize,
     pub reader: Box<dyn Read>,
-    pub writer: Box<dyn Write>,
+    pub writer: LazyWriter<String>,
 }
 
 pub fn parse() -> Option<CliArgs> {
@@ -133,10 +133,10 @@ pub fn parse() -> Option<CliArgs> {
                 eprintln!("WARNING: {} already exists", s);
                 None
             } else {
-                Some(Box::new(File::create(s).unwrap()) as Box<dyn Write>)
+                Some(LazyWriter::from_path(s.to_owned()))
             }
         })
-        .unwrap_or_else(|| Some(Box::new(stdout())))?;
+        .unwrap_or_else(|| Some(LazyWriter::from_writer(stdout())))?;
 
     Some(CliArgs {
         password: app.value_of("1_password").into(),
