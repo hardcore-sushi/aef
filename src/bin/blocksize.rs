@@ -10,7 +10,7 @@ use doby::{
 };
 
 const MAX_BLOCK_SIZE: usize = 1_073_741_824; //1GB
-const PASSWORD: &[u8] = b"HARDCORE music is the best music of all time";
+const PASSWORD: &str = "HARDCORE music is the best music of all time";
 
 fn set_if_better(best_time: &mut Option<u128>, time: u128, best_block_size: &mut Option<usize>, block_size: usize) {
     let mut better = true;
@@ -49,7 +49,7 @@ fn main() -> io::Result<()> {
         let mut reader = BufReader::with_capacity(block_size, &input);
         let mut writer = BufWriter::with_capacity(block_size, &output);
 
-        let cipher = DobyCipher::new(PASSWORD, &params).unwrap();
+        let cipher = DobyCipher::new(PASSWORD.into(), &params).unwrap();
         let t_encrypt = Instant::now();
         encrypt(&mut reader, &mut writer, &params, cipher, block_size, None)?;
         writer.flush()?;
@@ -59,7 +59,7 @@ fn main() -> io::Result<()> {
         reset(&mut reader)?;
         reset(&mut writer)?;
 
-        let cipher = DobyCipher::new(PASSWORD, &params).unwrap();
+        let cipher = DobyCipher::new(PASSWORD.into(), &params).unwrap();
         let t_decrypt = Instant::now();
         decrypt(&mut reader, &mut writer, cipher, block_size)?;
         writer.flush()?;

@@ -11,6 +11,7 @@ use rand::{Rng, rngs::OsRng};
 use argon2::{Argon2, Version, Algorithm};
 use hkdf::Hkdf;
 use zeroize::Zeroize;
+use crate::Password;
 
 const SALT_LEN: usize = 64;
 const AES_NONCE_LEN: usize = 16;
@@ -126,6 +127,17 @@ impl EncryptionParams {
     }
 }
 
+trait ThenZeroize {
+    fn zeroize<T: Zeroize>(self, v: T) -> Self;
+}
+
+impl<S, E> ThenZeroize for Result<S, E> {
+    fn zeroize<T: Zeroize>(self, mut v: T) -> Self {
+        v.zeroize();
+        self
+    }
+}
+
 pub struct DobyCipher {
     cipher: Box<dyn StreamCipher>,
     hmac: Hmac<blake3::Hasher>,
@@ -133,31 +145,42 @@ pub struct DobyCipher {
 }
 
 impl DobyCipher {
-    pub fn new(password: &[u8], params: &EncryptionParams) -> Result<Self, argon2::Error> {
-        let argon = Argon2::new(None, params.argon2.t_cost, params.argon2.m_cost, params.argon2.parallelism.into(), Version::V0x13)?;
-        let mut master_key = [0; KEY_LEN];
-        argon.hash_password_into(Algorithm::Argon2id, password, &params.password_salt, &[], &mut master_key)?;
+    pub fn new(mut password: Password, params: &EncryptionParams) -> Result<Self, argon2::Error> {
+        match Argon2::new(None, params.argon2.t_cost, params.argon2.m_cost, params.argon2.parallelism.into(), Version::V0x13) {
+            Ok(argon2) => {
+                let mut master_key = [0; KEY_LEN];
+                let password = password.unwrap_or_ask();
+                argon2.hash_password_into(Algorithm::Argon2id, password.as_bytes(), &params.password_salt, &[], &mut master_key).zeroize(password)?;
+                let hkdf = Hkdf::<blake3::Hasher>::new(Some(&params.hkdf_salt), &master_key);
+                let mut encryption_key = [0; KEY_LEN];
+                hkdf.expand(b"doby_encryption_key", &mut encryption_key).unwrap();
+                let mut authentication_key = [0; KEY_LEN];
+                hkdf.expand(b"doby_authentication_key", &mut authentication_key).unwrap();
+                master_key.zeroize();
 
-        let hkdf = Hkdf::<blake3::Hasher>::new(Some(&params.hkdf_salt), &master_key);
-        let mut encryption_key = [0; KEY_LEN];
-        hkdf.expand(b"doby_encryption_key", &mut encryption_key).unwrap();
-        let mut authentication_key = [0; KEY_LEN];
-        hkdf.expand(b"doby_authentication_key", &mut authentication_key).unwrap();
-        master_key.zeroize();
+                let mut encoded_params = Vec::with_capacity(params.get_params_len());
+                params.write(&mut encoded_params).unwrap();
+                let mut hmac = Hmac::new_from_slice(&authentication_key).unwrap();
+                authentication_key.zeroize();
+                hmac.update(&encoded_params);
 
-        let mut encoded_params = Vec::with_capacity(params.get_params_len());
-        params.write(&mut encoded_params).unwrap();
-        let mut hmac = Hmac::new_from_slice(&authentication_key).unwrap();
-        hmac.update(&encoded_params);
+                let cipher: Box<dyn StreamCipher> = match params.cipher {
+                    CipherAlgorithm::AesCtr => Box::new(Aes256Ctr::new_from_slices(&encryption_key, &params.nonce).unwrap()),
+                    CipherAlgorithm::XChaCha20 => Box::new(XChaCha20::new_from_slices(&encryption_key, &params.nonce).unwrap()),
+                };
+                encryption_key.zeroize();
 
-        Ok(Self {
-            cipher: match params.cipher {
-                CipherAlgorithm::AesCtr => Box::new(Aes256Ctr::new_from_slices(&encryption_key, &params.nonce).unwrap()),
-                CipherAlgorithm::XChaCha20 => Box::new(XChaCha20::new_from_slices(&encryption_key, &params.nonce).unwrap()),
-            },
-            hmac,
-            buffer: Vec::new(),
-        })
+                Ok(Self {
+                    cipher,
+                    hmac,
+                    buffer: Vec::new(),
+                })
+            }
+            Err(e) => {
+                password.zeroize();
+                Err(e)
+            }
+        }
     }
 
     pub fn encrypt_chunk<W: Write>(&mut self, buff: &mut [u8], writer: &mut W) -> io::Result<()> {
@@ -229,19 +252,19 @@ mod tests {
             m_cost: 8,
             parallelism: 1,
         }, CipherAlgorithm::AesCtr);
-        let password = b"I like spaghetti";
+        let password = "I like spaghetti";
         let plaintext = b"but I love so much to listen to HARDCORE music on big subwoofer";
         let mut buff: [u8; 63] = *plaintext;
         let mut vec = Vec::with_capacity(buff.len()+HASH_LEN);
 
-        let mut enc_cipher = DobyCipher::new(password, &params).unwrap();
+        let mut enc_cipher = DobyCipher::new(password.into(), &params).unwrap();
         enc_cipher.encrypt_chunk(&mut buff, &mut vec).unwrap();
         assert_ne!(buff, *plaintext);
         assert_eq!(buff, vec.as_slice());
         assert_eq!(enc_cipher.write_hmac(&mut vec).unwrap(), HASH_LEN);
         assert_eq!(vec.len(), buff.len()+HASH_LEN);
 
-        let mut dec_cipher = DobyCipher::new(password, &params).unwrap();
+        let mut dec_cipher = DobyCipher::new(password.into(), &params).unwrap();
         let mut decrypted = vec![0; buff.len()+HASH_LEN];
         let mut n  = dec_cipher.decrypt_chunk(&mut vec.as_slice(), &mut decrypted[..]).unwrap();
         assert_eq!(n, buff.len());

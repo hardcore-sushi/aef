@@ -5,12 +5,12 @@ use std::{
     io::{stdin, stdout, Read, Write},
 };
 use clap::{crate_name, crate_version, App, Arg, AppSettings};
-use crate::crypto::{ArgonParams, CipherAlgorithm};
+use crate::{Password, crypto::{ArgonParams, CipherAlgorithm}};
 
 cpufeatures::new!(aes_ni, "aes");
 
 pub struct CliArgs {
-    pub password: String,
+    pub password: Password,
     pub force_encrypt: bool,
     pub argon2_params: ArgonParams,
     pub cipher: CipherAlgorithm,
@@ -130,13 +130,8 @@ pub fn parse() -> Option<CliArgs> {
         })
         .unwrap_or_else(|| Some(Box::new(stdout())))?;
 
-    let password = match app.value_of("1_password") {
-        Some(s) => s.to_string(),
-        None => rpassword::read_password_from_tty(Some("Password: ")).unwrap(),
-    };
-
     Some(CliArgs {
-        password,
+        password: app.value_of("1_password").into(),
         force_encrypt: app.is_present("force-encrypt"),
         argon2_params: params,
         cipher,

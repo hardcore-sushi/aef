@@ -3,8 +3,35 @@ pub mod crypto;
 
 use std::io::{self, Read, Write};
 use crypto::{DobyCipher, EncryptionParams};
+use zeroize::Zeroize;
 
 pub const MAGIC_BYTES: &[u8; 4] = b"DOBY";
+
+pub struct Password(Option<String>);
+
+impl Password {
+    fn unwrap_or_ask(self) -> String {
+        self.0.unwrap_or_else(|| rpassword::read_password_from_tty(Some("Password: ")).unwrap())
+    }
+}
+
+impl From<Option<&str>> for Password {
+    fn from(s: Option<&str>) -> Self {
+        Self(s.map(|s| String::from(s)))
+    }
+}
+
+impl From<&str> for Password {
+    fn from(s: &str) -> Self {
+        Some(s).into()
+    }
+}
+
+impl Zeroize for Password {
+    fn zeroize(&mut self) {
+        self.0.zeroize()
+    }
+}
 
 pub fn encrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, params: &EncryptionParams, mut cipher: DobyCipher, block_size: usize, already_read: Option<Vec<u8>>) -> io::Result<()> {
     writer.write_all(MAGIC_BYTES)?;
