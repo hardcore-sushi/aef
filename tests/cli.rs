@@ -31,3 +31,11 @@ fn files() -> io::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn argon2_params() -> io::Result<()> {
+    Command::cargo_bin("doby").unwrap().arg("-i").arg("0").assert().stderr("Invalid argon2 params: time cost is too small\n");
+    Command::cargo_bin("doby").unwrap().arg("-m").arg("0").assert().stderr("Invalid argon2 params: memory cost is too small\n");
+    Command::cargo_bin("doby").unwrap().arg("-t").arg("0").assert().stderr("Invalid argon2 params: too few lanes\n");
+    Ok(())
+}
