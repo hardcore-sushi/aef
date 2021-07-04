@@ -1,4 +1,4 @@
-use std::io::{BufWriter, BufReader, Read};
+use std::{process, io::{BufWriter, BufReader, Read}};
 use doby::{
     cli,
     crypto::{EncryptionParams, DobyCipher},
@@ -7,7 +7,8 @@ use doby::{
     encrypt,
 };
 
-fn main() {
+fn run() -> bool {
+    let mut success = false;
     if let Some(cli_args) = cli::parse() {
         let mut reader = BufReader::with_capacity(cli_args.block_size, cli_args.reader);
         let mut writer = BufWriter::with_capacity(cli_args.block_size, cli_args.writer);
@@ -27,7 +28,9 @@ fn main() {
                                         Ok(cipher) => {
                                             match decrypt(&mut reader, &mut writer, cipher, cli_args.block_size) {
                                                 Ok(verified) => {
-                                                    if !verified {
+                                                    if verified {
+                                                        success = true
+                                                    } else {
                                                         eprintln!("WARNING: HMAC verification failed !\nEither your password is incorrect or the ciphertext has been corrupted.\nBe careful, the data could have been altered by an attacker.");
                                                     }
                                                 }
@@ -46,7 +49,7 @@ fn main() {
                     let params = EncryptionParams::new(cli_args.argon2_params, cli_args.cipher);
                     match DobyCipher::new(cli_args.password, &params) {
                         Ok(cipher) => {
-                            if let Err(e) = encrypt(
+                            match encrypt(
                                 &mut reader,
                                 &mut writer,
                                 &params,
@@ -54,7 +57,8 @@ fn main() {
                                 cli_args.block_size, 
                                 Some(magic_bytes)
                             ) {
-                                eprintln!("I/O error while encrypting: {}", e);
+                                Ok(_) => success = true,
+                                Err(e) => eprintln!("I/O error while encrypting: {}", e)
                             }
                         }
                         Err(e) => eprintln!("Invalid argon2 params: {}", e)
@@ -64,4 +68,13 @@ fn main() {
             Err(e) => eprintln!("I/O error while reading magic bytes: {}", e),
         }
     }
+    success
+}
+
+fn main() {
+    process::exit(if run() {
+        0
+    } else {
+        1
+    });
 }
