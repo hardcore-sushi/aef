@@ -111,18 +111,26 @@ pub fn parse() -> Option<CliArgs> {
 
     let block_size = number(app.value_of("blocksize").unwrap())?;
 
-    let input = app
+    let input = match app
         .value_of("INPUT")
         .and_then(|s| if s == "-" { None } else { Some(s) })
-        .map(|s| Box::new(File::open(s).unwrap()) as Box<dyn Read>)
-        .unwrap_or_else(|| Box::new(stdin()));
+        {
+            Some(s) => 
+                Box::new(
+                    File::open(s)
+                        .map_err(|e| eprintln!("{}: {}", s, e))
+                        .ok()?
+                ) as Box<dyn Read>
+            ,
+            None => Box::new(stdin())
+        };
 
     let output = app
         .value_of("OUTPUT")
         .and_then(|s| if s == "-" { None } else { Some(s) })
         .map(|s| {
             if Path::new(s).exists() {
-                eprintln!("{} already exists", s);
+                eprintln!("WARNING: {} already exists", s);
                 None
             } else {
                 Some(Box::new(File::create(s).unwrap()) as Box<dyn Write>)
