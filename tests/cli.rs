@@ -1,4 +1,4 @@
-use std::{io::{self, Read, Write}, fs::{File, create_dir}, path::PathBuf};
+use std::{io::{self, Read, Write}, fs::{self, File, create_dir}, path::PathBuf};
 use assert_cmd::{Command, cargo::{CargoError, cargo_bin}};
 use tempfile::TempDir;
 
@@ -37,7 +37,7 @@ fn files() -> io::Result<()> {
 
     doby_cmd().unwrap().arg(tmp_plaintext).arg(&tmp_ciphertext).assert().success().stdout("").stderr("");
 
-    let tmp_decrypted = tmp_path.join("decryped");
+    let tmp_decrypted = tmp_path.join("decrypted");
     doby_cmd().unwrap().arg(tmp_ciphertext).arg(&tmp_decrypted).assert().success().stdout("").stderr("");
 
     let mut buff = [0; PLAINTEXT.len()];
@@ -68,6 +68,34 @@ fn stdin() -> io::Result<()> {
 
     shell_cmd = format!("cat {} | {} -p \"{}\"", tmp_ciphertext.to_str().unwrap(), cargo_bin("doby").to_str().unwrap(), PASSWORD);
     bash_cmd().arg(shell_cmd).assert().success().stdout(PLAINTEXT);
+
+    Ok(())
+}
+
+#[test]
+fn force_encrypt() -> io::Result<()> {
+    let (tmp_path, tmp_plaintext, tmp_ciphertext_1) = setup_files()?;
+
+    doby_cmd().unwrap().arg(tmp_plaintext).arg(&tmp_ciphertext_1).assert().success().stdout("").stderr("");
+
+    let tmp_ciphertext_2 = tmp_path.join("ciphertext_2");
+    doby_cmd().unwrap().arg("-f").arg(&tmp_ciphertext_1).arg(&tmp_ciphertext_2).assert().success().stdout("").stderr("");
+    let buff_ciphertext_1 = fs::read(tmp_ciphertext_1)?;
+    let buff_ciphertext_2 = fs::read(&tmp_ciphertext_2)?;
+    assert_ne!(buff_ciphertext_1, buff_ciphertext_2);
+    assert_ne!(buff_ciphertext_2, PLAINTEXT);
+    assert!(buff_ciphertext_2.len() >= buff_ciphertext_1.len()+190);
+
+    let tmp_decrypted_1 = tmp_path.join("decrypted_1");
+    doby_cmd().unwrap().arg(tmp_ciphertext_2).arg(&tmp_decrypted_1).assert().success().stdout("").stderr("");
+    let buff_decrypted_1 = fs::read(&tmp_decrypted_1)?;
+    assert_eq!(buff_decrypted_1, buff_ciphertext_1);
+    assert_ne!(buff_decrypted_1, PLAINTEXT);
+
+    let tmp_decrypted_2 = tmp_path.join("decrypted_2");
+    doby_cmd().unwrap().arg(tmp_decrypted_1).arg(&tmp_decrypted_2).assert().success().stdout("").stderr("");
+    let buff_decrypted_2 = fs::read(tmp_decrypted_2)?;
+    assert_eq!(buff_decrypted_2, PLAINTEXT);
 
     Ok(())
 }
