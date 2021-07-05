@@ -34,7 +34,7 @@ pub enum CipherAlgorithm {
 }
 
 impl CipherAlgorithm {
-    fn get_nonce_size(&self) -> usize {
+    pub fn get_nonce_size(&self) -> usize {
         match self {
             CipherAlgorithm::AesCtr => AES_NONCE_LEN,
             CipherAlgorithm::XChaCha20 => XCHACHA20_NONCE_LEN,

@@ -1,6 +1,7 @@
 use std::{io::{self, Read, Write}, fs::{self, File, create_dir}, path::PathBuf};
 use assert_cmd::{Command, cargo::{CargoError, cargo_bin}};
 use tempfile::TempDir;
+use doby::crypto::CipherAlgorithm;
 
 const PLAINTEXT: &[u8] = b"the plaintext";
 const PASSWORD: &str = "the password";
@@ -99,6 +100,33 @@ fn force_encrypt() -> io::Result<()> {
 
     Ok(())
 }
+
+fn test_cipher(cipher_str: &str, cipher_algorithm: CipherAlgorithm) -> io::Result<()> {
+    let (_, tmp_plaintext, tmp_ciphertext) = setup_files()?;
+
+    doby_cmd().unwrap().arg("-c").arg(cipher_str).arg(tmp_plaintext).arg(&tmp_ciphertext).assert().success().stdout("").stderr("");
+
+    let ciphertext = fs::read(&tmp_ciphertext)?;
+    assert_eq!(ciphertext[4+64*2+4*2+1], cipher_algorithm as u8);
+    assert_eq!(ciphertext.len(), PLAINTEXT.len()+174+cipher_algorithm.get_nonce_size());
+
+    doby_cmd().unwrap().arg(tmp_ciphertext).assert().success().stdout(PLAINTEXT).stderr("");
+
+    Ok(())
+}
+
+#[test]
+fn xchacha20_cipher() -> io::Result<()> {
+    test_cipher("xchacha20", CipherAlgorithm::XChaCha20)?;
+    Ok(())
+}
+
+#[test]
+fn aes_cipher() -> io::Result<()> {
+    test_cipher("aes", CipherAlgorithm::AesCtr)?;
+    Ok(())
+}
+
 
 #[test]
 fn argon2_params() -> io::Result<()> {
