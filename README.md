@@ -9,6 +9,7 @@ doby started as a fork of [aef](https://github.com/wyhaya/aef) by [wyhaya](https
 * Fast: written in [rust](https://www.rust-lang.org), encrypts with [AES-256-CTR](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR)) or [XChaCha20](https://en.wikipedia.org/wiki/Salsa20#XChaCha)
 * [HMAC](https://en.wikipedia.org/wiki/HMAC) ciphertext authentication
 * Password brute-force resistance with [Argon2](https://en.wikipedia.org/wiki/Argon2)
+* Increase the plaintext size of only 190 bytes
 * Encryption from STDIN/STDOUT or from files
 * Adjustable performance & secuity parameters
 
