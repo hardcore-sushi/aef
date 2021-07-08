@@ -85,22 +85,41 @@ ARGS:
     <OUTPUT>    <PATH> | "-" or empty for stdout
 ```
 
-# Build
+# Installation
+You can download doby from the "Releases" section in this repo.
 
-You should verify commits before building the binary. You can download my PGP key from keyservers:
-
-```
+All binaries MUST be signed with my PGP key available on keyservers. To import it:
+```bash
 gpg --keyserver hkp://pool.sks-keyservers.net --recv-keys 007F84120107191E
 ```
 Fingerprint: `BD56 2147 9E7B 74D3 6A40  5BE8 007F 8412 0107 191E` \
 Email: `Hardcore Sushi <hardcore.sushi@disroot.org>`
 
-Once imported:
+Then, save the PGP-signed message to a file and run:
+```bash
+gpg --verify <the file>
+```
+__Don't continue if the verification fails!__
+
+If everything goes fine, you can compute the SHA-256 hash of the binary file you want to verify:
+```bash
+sha256sum <doby binary file>
+```
+Compare this output and the hash in the PGP-signed message. __Don't execute the file if the hashes don't match!__
+
+You can make available doby in your `$PATH` by running:
+```bash
+sudo cp <doby binary file> /usr/local/bin/
+```
+
+# Build
+
+You should verify commits before building the binary. Follow the steps in [Installation](#installation) to import my PGP key.
 
 ```bash
 git clone --depth=1 https://forge.chapril.org/hardcoresushi/doby.git
 cd doby
-git verify-commit HEAD
+git verify-commit HEAD #you need to import my PGP key to verify the commit signature
 cargo build --release #outputs to ./target/release/doby
 ```
 
