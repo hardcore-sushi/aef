@@ -13,11 +13,11 @@ use hkdf::Hkdf;
 use zeroize::Zeroize;
 use crate::Password;
 
-const SALT_LEN: usize = 64;
+pub const SALT_LEN: usize = 64;
 const AES_NONCE_LEN: usize = 16;
 const XCHACHA20_NONCE_LEN: usize = 24;
-const HASH_LEN: usize = 32;
-const KEY_LEN: usize = HASH_LEN;
+pub const HASH_LEN: usize = 64;
+const KEY_LEN: usize = 32;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ArgonParams {
@@ -53,54 +53,47 @@ impl Display for CipherAlgorithm {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct EncryptionParams {
-    password_salt: [u8; SALT_LEN],
+    salt: [u8; SALT_LEN],
     pub argon2: ArgonParams,
-    hkdf_salt: [u8; SALT_LEN],
     nonce: Vec<u8>,
     pub cipher: CipherAlgorithm,
 }
 
 impl EncryptionParams {
     fn get_params_len(&self) -> usize {
-        SALT_LEN*2 + 4*2 + 2 + self.cipher.get_nonce_size()
+        SALT_LEN + 4*2 + 2 + self.cipher.get_nonce_size()
     }
 
     pub fn new(argon2_params: ArgonParams, cipher: CipherAlgorithm) -> EncryptionParams {
-        let mut password_salt = [0; SALT_LEN];
-        OsRng.fill(&mut password_salt);
-        let mut hkdf_salt = [0; SALT_LEN];
-        OsRng.fill(&mut hkdf_salt); 
+        let mut salt = [0; SALT_LEN];
+        OsRng.fill(&mut salt);
         let mut nonce = vec![0; cipher.get_nonce_size()];
         OsRng.fill(&mut nonce[..]);
         EncryptionParams {
-            password_salt,
+            salt,
             argon2: argon2_params,
-            hkdf_salt,
             nonce,
             cipher,
         }
     }
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_all(&self.password_salt)?;
+        writer.write_all(&self.salt)?;
         writer.write_all(&self.argon2.t_cost.to_be_bytes())?;
         writer.write_all(&self.argon2.m_cost.to_be_bytes())?;
         writer.write_all(&self.argon2.parallelism.to_be_bytes())?;
-        writer.write_all(&self.hkdf_salt)?;
         writer.write_all(&(self.cipher as u8).to_be_bytes())?;
         writer.write_all(&self.nonce)?;
         Ok(())
     }
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Option<Self>> {
-        let mut password_salt = [0; SALT_LEN];
-        reader.read_exact(&mut password_salt)?;
+        let mut salt = [0; SALT_LEN];
+        reader.read_exact(&mut salt)?;
         let mut t_cost = [0; 4];
         reader.read_exact(&mut t_cost)?;
         let mut m_cost = [0; 4];
         reader.read_exact(&mut m_cost)?;
         let mut parallelism = [0; 1];
         reader.read_exact(&mut parallelism)?;
-        let mut hkdf_salt = [0; SALT_LEN];
-        reader.read_exact(&mut hkdf_salt)?;
         let mut cipher_buff = [0; 1];
         reader.read_exact(&mut cipher_buff)?;
         match CipherAlgorithm::try_from(cipher_buff[0]) {
@@ -115,9 +108,8 @@ impl EncryptionParams {
                 };
 
                 Ok(Some(EncryptionParams {
-                    password_salt,
+                    salt,
                     argon2: argon2_params,
-                    hkdf_salt,
                     nonce,
                     cipher,
                 }))
@@ -140,7 +132,7 @@ impl<S, E> ThenZeroize for Result<S, E> {
 
 pub struct DobyCipher {
     cipher: Box<dyn StreamCipher>,
-    hmac: Hmac<blake3::Hasher>,
+    hmac: Hmac<blake2::Blake2b>,
     buffer: Vec<u8>,
 }
 
@@ -150,8 +142,8 @@ impl DobyCipher {
             Ok(argon2) => {
                 let mut master_key = [0; KEY_LEN];
                 let password = password.unwrap_or_ask();
-                argon2.hash_password_into(Algorithm::Argon2id, password.as_bytes(), &params.password_salt, &[], &mut master_key).zeroize(password)?;
-                let hkdf = Hkdf::<blake3::Hasher>::new(Some(&params.hkdf_salt), &master_key);
+                argon2.hash_password_into(Algorithm::Argon2id, password.as_bytes(), &params.salt, &[], &mut master_key).zeroize(password)?;
+                let hkdf = Hkdf::<blake2::Blake2b>::new(Some(&params.salt), &master_key);
                 let mut encryption_key = [0; KEY_LEN];
                 hkdf.expand(b"doby_encryption_key", &mut encryption_key).unwrap();
                 let mut authentication_key = [0; KEY_LEN];
@@ -229,17 +221,16 @@ mod tests {
             parallelism: 1,
         }, CipherAlgorithm::XChaCha20);
 
-        assert_eq!(params.get_params_len(), 162);
+        assert_eq!(params.get_params_len(), 98);
 
-        let mut buff = Vec::with_capacity(162);
+        let mut buff = Vec::with_capacity(98);
         params.write(&mut buff).unwrap();
-        assert_eq!(buff[..64], params.password_salt);
+        assert_eq!(buff[..64], params.salt);
         assert_eq!(buff[64..68], vec![0, 0, 0, 0x01]); //t_cost
         assert_eq!(buff[68..72], vec![0, 0, 0, 0x08]); //m_cost
         assert_eq!(buff[72], 0x01); //parallelism
-        assert_eq!(buff[73..137], params.hkdf_salt);
-        assert_eq!(buff[137], CipherAlgorithm::XChaCha20 as u8);
-        assert_eq!(buff[138..], params.nonce);
+        assert_eq!(buff[73], CipherAlgorithm::XChaCha20 as u8);
+        assert_eq!(buff[74..], params.nonce);
 
         let new_params = EncryptionParams::read(&mut buff.as_slice()).unwrap().unwrap();
         assert_eq!(new_params, params);

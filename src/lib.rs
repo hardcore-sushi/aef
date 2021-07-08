@@ -85,8 +85,8 @@ pub fn encrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, params: &Encry
                 cipher.encrypt_chunk(&mut buff[..n], writer)?;
             }
         }
-        cipher.write_hmac(writer)?;
     }
+    cipher.write_hmac(writer)?;
     Ok(())
 }
 

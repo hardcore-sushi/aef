@@ -9,7 +9,7 @@ doby started as a fork of [aef](https://github.com/wyhaya/aef) by [wyhaya](https
 * Fast: written in [rust](https://www.rust-lang.org), encrypts with [AES-256-CTR](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR)) or [XChaCha20](https://en.wikipedia.org/wiki/Salsa20#XChaCha)
 * [HMAC](https://en.wikipedia.org/wiki/HMAC) ciphertext authentication
 * Password brute-force resistance with [Argon2](https://en.wikipedia.org/wiki/Argon2)
-* Increase the plaintext size of only 190 bytes
+* Increase the plaintext size of only 158 bytes
 * Encryption from STDIN/STDOUT or from files
 * Adjustable performance & secuity parameters
 
@@ -113,37 +113,36 @@ doby first derives your password with Argon2 (version 19) in Argon2id mode with 
 ```rust
 let master_key: [u8; 32] = argon2id(
     password,
-    random_password_salt,
+    random_salt,
     argon2_time_cost,
     argon2_memory_cost,
     argon2_parallelism,
 );
 ```
 
-Then, doby uses [HKDF](https://en.wikipedia.org/wiki/HKDF) with a new random salt to compute the `encryption_key` and the `authentication_key`.
+Then, doby uses [HKDF](https://en.wikipedia.org/wiki/HKDF) with the previous random salt to compute the `encryption_key` and the `authentication_key`.
 
 ```rust
 let hkdf = Hkdf::new(
-    random_hkdf_salt,
+    random_salt,
     master_key, //ikm
-    blake3, //hash function
+    blake2b, //hash function
 );
 let encryption_key: [u8; 32] = hkdf.expand(b"doby_encryption_key");
 let authentication_key: [u8; 32] = hkdf.expand(b"doby_authentication_key");
 ```
 
-Next, doby initializes a [BLAKE3](https://en.wikipedia.org/wiki/BLAKE_%28hash_function%29#BLAKE3) HMAC with `authentication_key` and add all public encryption parameters to it.
+Next, doby initializes a [BLAKE2b](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2) HMAC with `authentication_key` and add all public encryption parameters to it.
 
 ```rust
 let hmac = Hmac::new(
     authentication_key,
-    blake3, //hash function
+    blake2b, //hash function
 );
-hmac.update(random_password_salt);
+hmac.update(random_salt);
 hmac.update(argon2_time_cost);
 hmac.update(argon2_memory_cost);
 hmac.update(argon2_parallelism);
-hmac.update(random_hkdf_salt);
 hmac.update(cipher); //1-byte representation of the symmetric cipher used to encrypt (either AES-CTR or XChaCha20)
 hmac.update(random_nonce); //random nonce used for encryption (16 bytes for AES-CTR, 24 for XChaCha20)
 ```
@@ -177,14 +176,14 @@ doby reads the public encryption values from the input header to get all paramet
 ```rust
 let master_key: [u8; 32] = argon2id(
     password,
-    password_salt_read_from_input,
+    salt_read_from_input,
     argon2_time_cost_read_from_input,
     argon2_memory_cost_read_from_input,
     argon2_parallelism_read_from_input,
 );
 ```
 
-`encryption_key` and `authentication_key` are computed from `master_key` and the HKDF salt in the same way as during encryption. The HMAC is also initialized and updated with the values read from the header.
+`encryption_key` and `authentication_key` are computed from `master_key` in the same way as during encryption. The HMAC is also initialized and updated with the values read from the header.
 
 Then, doby starts decryption.
 
@@ -203,7 +202,7 @@ while n != 0 {
 Once the whole ciphertext is decrypted, doby computes and verifies the HMAC.
 
 ```rust
-hmac.digest() == last_32_bytes_read
+hmac.digest() == last_64_bytes_read // the default blake2b output size is 64 bytes
 ```
 
 If the verification success, the file is successfully decrypted and authenticated.
