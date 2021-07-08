@@ -60,7 +60,7 @@ pub struct EncryptionParams {
 }
 
 impl EncryptionParams {
-    fn get_params_len(&self) -> usize {
+    pub fn get_params_len(&self) -> usize {
         SALT_LEN + 4*2 + 2 + self.cipher.get_nonce_size()
     }
 
