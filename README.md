@@ -18,20 +18,17 @@ doby is provided "as is", without any warranty of any kind. I'm not a profession
 
 # Usage
 
-Encryption
-
+Encryption:
 ```bash
 doby my-super-secret-source-code.rs encrypted.doby
 ```
 
-Decryption
-
+Decryption:
 ```bash
 doby encrypted.doby decrypted.rs
 ```
 
-If you ommit file path or use `-`, doby operates from `stdin/stdout`
-
+If you ommit file path or use `-`, doby operates from `stdin/stdout`:
 ```bash
 # Read from stdin and write to stdout
 cat my-super-secret-music.flac | doby > encrypted.doby
@@ -43,20 +40,17 @@ doby encrypted.doby > decrypted.flac
 cat my-super-secret-logs-file.log | doby - logs.doby
 ```
 
-Speicfy password from the command line
-
+Speicfy password from the command line:
 ```bash
 doby -p "A super very ultra strong passphrase" my-super-secret-document.pdf document.doby
 ```
 
-Double encryption
-
+Double encryption:
 ```bash
 doby -p "first password" my-super-secret-database.db | doby -f - double-encrypted.doby
 ```
 
-Increase password brute-force resistance
-
+Increase password brute-force resistance:
 ```bash
 echo "you-will-never-break-this" | doby --memory-cost 524288 --threads 16 --iterations 40 > my-super-secret-password.doby
 ```
