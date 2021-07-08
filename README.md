@@ -74,11 +74,11 @@ FLAGS:
 
 OPTIONS:
     -p, --password <password>          Password used to derive encryption keys
-    -b, --block-size <blocksize>       Size of file chunk (in bytes) [default: 65536]
-    -c, --cipher <cipher>              Encryption cipher to use [possible values: aes, xchacha20]
+    -i, --iterations <iterations>      Argon2 time cost [default: 10]
     -m, --memory-cost <memory cost>    Argon2 memory cost (in kilobytes) [default: 4096]
     -t, --threads <threads>            Argon2 parallelism (between 1 and 255) [default: 4]
-    -i, --iterations <iterations>      Argon2 time cost [default: 10]
+    -b, --block-size <blocksize>       Size of the I/O buffer (in bytes) [default: 65536]
+    -c, --cipher <cipher>              Encryption cipher to use [possible values: aes, xchacha20]
 
 ARGS:
     <INPUT>     <PATH> | "-" or empty for stdin

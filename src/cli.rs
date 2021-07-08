@@ -67,7 +67,7 @@ pub fn parse() -> Option<CliArgs> {
             Arg::with_name("blocksize")
                 .short("b")
                 .long("block-size")
-                .help("Size of file chunk (in bytes)")
+                .help("Size of the I/O buffer (in bytes)")
                 .default_value("65536")
         )
         .arg(
