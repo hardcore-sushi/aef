@@ -85,7 +85,7 @@ fn force_encrypt() -> io::Result<()> {
     let buff_ciphertext_2 = fs::read(&tmp_ciphertext_2)?;
     assert_ne!(buff_ciphertext_1, buff_ciphertext_2);
     assert_ne!(buff_ciphertext_2, PLAINTEXT);
-    assert!(buff_ciphertext_2.len() >= buff_ciphertext_1.len()+158);
+    assert!(buff_ciphertext_2.len() >= buff_ciphertext_1.len()+142);
 
     let tmp_decrypted_1 = tmp_path.join("decrypted_1");
     doby_cmd().unwrap().arg(tmp_ciphertext_2).arg(&tmp_decrypted_1).assert().success().stdout("").stderr("");
@@ -108,7 +108,7 @@ fn test_cipher(cipher_str: &str, cipher_algorithm: CipherAlgorithm) -> io::Resul
 
     let ciphertext = fs::read(&tmp_ciphertext)?;
     assert_eq!(ciphertext[4+SALT_LEN+4*2+1], cipher_algorithm as u8);
-    assert_eq!(ciphertext.len(), PLAINTEXT.len()+14+SALT_LEN+HASH_LEN+cipher_algorithm.get_nonce_size());
+    assert_eq!(ciphertext.len(), PLAINTEXT.len()+14+SALT_LEN+HASH_LEN);
 
     doby_cmd().unwrap().arg(tmp_ciphertext).assert().success().stdout(PLAINTEXT).stderr("");
 

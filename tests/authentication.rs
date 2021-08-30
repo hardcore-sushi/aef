@@ -19,6 +19,7 @@ fn different_elements<T: Eq>(v1: &Vec<T>, v2: &Vec<T>) -> usize {
 fn authentication() {
     const BLOCK_SIZE: usize = 65536;
     const PLAINTEXT: &[u8; 13] = b"the plaintext";
+    const CIPHERTEXT_SIZE: usize = PLAINTEXT.len()+142;
     const PASSWORD: &str = "the password";
     let params = EncryptionParams::new(ArgonParams {
         t_cost: 1,
@@ -27,9 +28,9 @@ fn authentication() {
     }, CipherAlgorithm::AesCtr);
 
     let encrypter = DobyCipher::new(PASSWORD.into(), &params).unwrap();
-    let mut ciphertext = Vec::with_capacity(PLAINTEXT.len()+158);
+    let mut ciphertext = Vec::with_capacity(CIPHERTEXT_SIZE);
     encrypt(&mut &PLAINTEXT[..], &mut ciphertext, &params, encrypter, BLOCK_SIZE, None).unwrap();
-    assert_eq!(ciphertext.len(), PLAINTEXT.len()+158);
+    assert_eq!(ciphertext.len(), CIPHERTEXT_SIZE);
 
     for i in 0..ciphertext.len() {
         let mut compromised = ciphertext.clone();

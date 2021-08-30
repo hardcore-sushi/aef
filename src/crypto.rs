@@ -55,24 +55,20 @@ impl Display for CipherAlgorithm {
 pub struct EncryptionParams {
     salt: [u8; SALT_LEN],
     pub argon2: ArgonParams,
-    nonce: Vec<u8>,
     pub cipher: CipherAlgorithm,
 }
 
 impl EncryptionParams {
     pub fn get_params_len(&self) -> usize {
-        SALT_LEN + 4*2 + 2 + self.cipher.get_nonce_size()
+        SALT_LEN + 4*2 + 2
     }
 
     pub fn new(argon2_params: ArgonParams, cipher: CipherAlgorithm) -> EncryptionParams {
         let mut salt = [0; SALT_LEN];
         OsRng.fill(&mut salt);
-        let mut nonce = vec![0; cipher.get_nonce_size()];
-        OsRng.fill(&mut nonce[..]);
         EncryptionParams {
             salt,
             argon2: argon2_params,
-            nonce,
             cipher,
         }
     }
@@ -82,7 +78,6 @@ impl EncryptionParams {
         writer.write_all(&self.argon2.m_cost.to_be_bytes())?;
         writer.write_all(&self.argon2.parallelism.to_be_bytes())?;
         writer.write_all(&(self.cipher as u8).to_be_bytes())?;
-        writer.write_all(&self.nonce)?;
         Ok(())
     }
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Option<Self>> {
@@ -98,9 +93,6 @@ impl EncryptionParams {
         reader.read_exact(&mut cipher_buff)?;
         match CipherAlgorithm::try_from(cipher_buff[0]) {
             Ok(cipher) => {
-                let mut nonce = vec![0; cipher.get_nonce_size()];
-                reader.read_exact(&mut nonce)?;
-
                 let argon2_params = ArgonParams {
                     t_cost: u32::from_be_bytes(t_cost),
                     m_cost: u32::from_be_bytes(m_cost),
@@ -110,7 +102,6 @@ impl EncryptionParams {
                 Ok(Some(EncryptionParams {
                     salt,
                     argon2: argon2_params,
-                    nonce,
                     cipher,
                 }))
             }
@@ -144,6 +135,8 @@ impl DobyCipher {
                 let password = password.unwrap_or_ask();
                 argon2.hash_password_into(Algorithm::Argon2id, password.as_bytes(), &params.salt, &[], &mut master_key).zeroize(password)?;
                 let hkdf = Hkdf::<blake2::Blake2b>::new(Some(&params.salt), &master_key);
+                let mut nonce = vec![0; params.cipher.get_nonce_size()];
+                hkdf.expand(b"doby_nonce", &mut nonce).unwrap();
                 let mut encryption_key = [0; KEY_LEN];
                 hkdf.expand(b"doby_encryption_key", &mut encryption_key).unwrap();
                 let mut authentication_key = [0; KEY_LEN];
@@ -157,8 +150,8 @@ impl DobyCipher {
                 hmac.update(&encoded_params);
 
                 let cipher: Box<dyn StreamCipher> = match params.cipher {
-                    CipherAlgorithm::AesCtr => Box::new(Aes256Ctr::new_from_slices(&encryption_key, &params.nonce).unwrap()),
-                    CipherAlgorithm::XChaCha20 => Box::new(XChaCha20::new_from_slices(&encryption_key, &params.nonce).unwrap()),
+                    CipherAlgorithm::AesCtr => Box::new(Aes256Ctr::new_from_slices(&encryption_key, &nonce).unwrap()),
+                    CipherAlgorithm::XChaCha20 => Box::new(XChaCha20::new_from_slices(&encryption_key, &nonce).unwrap()),
                 };
                 encryption_key.zeroize();
 
@@ -221,16 +214,15 @@ mod tests {
             parallelism: 1,
         }, CipherAlgorithm::XChaCha20);
 
-        assert_eq!(params.get_params_len(), 98);
+        assert_eq!(params.get_params_len(), 74);
 
-        let mut buff = Vec::with_capacity(98);
+        let mut buff = Vec::with_capacity(74);
         params.write(&mut buff).unwrap();
         assert_eq!(buff[..64], params.salt);
         assert_eq!(buff[64..68], vec![0, 0, 0, 0x01]); //t_cost
         assert_eq!(buff[68..72], vec![0, 0, 0, 0x08]); //m_cost
         assert_eq!(buff[72], 0x01); //parallelism
         assert_eq!(buff[73], CipherAlgorithm::XChaCha20 as u8);
-        assert_eq!(buff[74..], params.nonce);
 
         let new_params = EncryptionParams::read(&mut buff.as_slice()).unwrap().unwrap();
         assert_eq!(new_params, params);
