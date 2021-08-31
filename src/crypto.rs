@@ -1,8 +1,4 @@
-use std::{
-    convert::TryFrom,
-    fmt::{self, Display, Formatter},
-    io::{self, Read, Write}
-};
+use std::{convert::{TryFrom, TryInto}, fmt::{self, Display, Formatter}, io::{self, Read, Write}};
 use num_enum::TryFromPrimitive;
 use chacha20::XChaCha20;
 use aes::{Aes256Ctr, cipher::{NewCipher, StreamCipher}};
@@ -19,11 +15,18 @@ const XCHACHA20_NONCE_LEN: usize = 24;
 pub const HASH_LEN: usize = 64;
 const KEY_LEN: usize = 32;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ArgonParams {
     pub t_cost: u32,
     pub m_cost: u32,
     pub parallelism: u8,
+}
+
+impl TryFrom<ArgonParams> for argon2::Params {
+    type Error = argon2::Error;
+    fn try_from(params: ArgonParams) -> Result<Self, Self::Error> {
+        argon2::Params::new(params.m_cost, params.t_cost, params.parallelism.into(), None)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, TryFromPrimitive)]
@@ -59,9 +62,7 @@ pub struct EncryptionParams {
 }
 
 impl EncryptionParams {
-    pub fn get_params_len(&self) -> usize {
-        SALT_LEN + 4*2 + 2
-    }
+    pub const LEN: usize = SALT_LEN + 4*2 + 2;
 
     pub fn new(argon2_params: ArgonParams, cipher: CipherAlgorithm) -> EncryptionParams {
         let mut salt = [0; SALT_LEN];
@@ -72,6 +73,7 @@ impl EncryptionParams {
             cipher,
         }
     }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&self.salt)?;
         writer.write_all(&self.argon2.t_cost.to_be_bytes())?;
@@ -80,6 +82,7 @@ impl EncryptionParams {
         writer.write_all(&(self.cipher as u8).to_be_bytes())?;
         Ok(())
     }
+
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Option<Self>> {
         let mut salt = [0; SALT_LEN];
         reader.read_exact(&mut salt)?;
@@ -129,11 +132,12 @@ pub struct DobyCipher {
 
 impl DobyCipher {
     pub fn new(mut password: Password, params: &EncryptionParams) -> Result<Self, argon2::Error> {
-        match Argon2::new(None, params.argon2.t_cost, params.argon2.m_cost, params.argon2.parallelism.into(), Version::V0x13) {
-            Ok(argon2) => {
+        match params.argon2.try_into() {
+            Ok(argon2_params) => {
+                let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, argon2_params);
                 let mut master_key = [0; KEY_LEN];
                 let password = password.unwrap_or_ask();
-                argon2.hash_password_into(Algorithm::Argon2id, password.as_bytes(), &params.salt, &[], &mut master_key).zeroize(password)?;
+                argon2.hash_password_into(password.as_bytes(), &params.salt, &mut master_key).zeroize(password)?;
                 let hkdf = Hkdf::<blake2::Blake2b>::new(Some(&params.salt), &master_key);
                 let mut nonce = vec![0; params.cipher.get_nonce_size()];
                 hkdf.expand(b"doby_nonce", &mut nonce).unwrap();
@@ -143,7 +147,7 @@ impl DobyCipher {
                 hkdf.expand(b"doby_authentication_key", &mut authentication_key).unwrap();
                 master_key.zeroize();
 
-                let mut encoded_params = Vec::with_capacity(params.get_params_len());
+                let mut encoded_params = Vec::with_capacity(EncryptionParams::LEN);
                 params.write(&mut encoded_params).unwrap();
                 let mut hmac = Hmac::new_from_slice(&authentication_key).unwrap();
                 authentication_key.zeroize();
@@ -214,7 +218,7 @@ mod tests {
             parallelism: 1,
         }, CipherAlgorithm::XChaCha20);
 
-        assert_eq!(params.get_params_len(), 74);
+        assert_eq!(EncryptionParams::LEN, 74);
 
         let mut buff = Vec::with_capacity(74);
         params.write(&mut buff).unwrap();

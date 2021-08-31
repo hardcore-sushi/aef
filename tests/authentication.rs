@@ -46,7 +46,7 @@ fn authentication() {
 
     let decrypter = DobyCipher::new(PASSWORD.into(), &params).unwrap();
     let mut decrypted = Vec::with_capacity(PLAINTEXT.len());
-    let verified = decrypt(&mut &ciphertext[4+params.get_params_len()..], &mut decrypted, decrypter, BLOCK_SIZE).unwrap();
+    let verified = decrypt(&mut &ciphertext[4+EncryptionParams::LEN..], &mut decrypted, decrypter, BLOCK_SIZE).unwrap();
     assert_eq!(decrypted, PLAINTEXT);
     assert_eq!(verified, true);
 }

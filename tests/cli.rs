@@ -132,7 +132,7 @@ fn aes_cipher() -> io::Result<()> {
 fn argon2_params() -> io::Result<()> {
     Command::cargo_bin("doby").unwrap().arg("-i").arg("0").assert().failure().stderr("Invalid argon2 params: time cost is too small\n");
     Command::cargo_bin("doby").unwrap().arg("-m").arg("0").assert().failure().stderr("Invalid argon2 params: memory cost is too small\n");
-    Command::cargo_bin("doby").unwrap().arg("-t").arg("0").assert().failure().stderr("Invalid argon2 params: too few lanes\n");
+    Command::cargo_bin("doby").unwrap().arg("-t").arg("0").assert().failure().stderr("Invalid argon2 params: not enough threads\n");
 
     let ciphertext = doby_cmd().unwrap().arg("-i").arg("8").arg("-m").arg("2048").arg("-t").arg("8").assert().success().stderr("").get_output().stdout.clone();
     assert_eq!(u32::from_be_bytes(ciphertext[4+SALT_LEN..4+SALT_LEN+4].try_into().unwrap()), 8); //time cost
