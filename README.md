@@ -114,7 +114,7 @@ You should verify commits before building the binary. Follow the steps in [Insta
 git clone --depth=1 https://forge.chapril.org/hardcoresushi/doby.git
 cd doby
 git verify-commit HEAD #you need to import my PGP key to verify the commit signature
-cargo build --release #outputs to ./target/release/doby
+cargo build --release --bin doby #outputs to ./target/release/doby
 ```
 
 # Cryptographic details
