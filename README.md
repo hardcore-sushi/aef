@@ -154,6 +154,7 @@ let hmac = Hmac::new(
     blake2b, //hash function
 );
 hmac.update(random_salt);
+//integers are encoded in big-endian
 hmac.update(argon2_time_cost);
 hmac.update(argon2_memory_cost);
 hmac.update(argon2_parallelism);
@@ -181,6 +182,41 @@ Once the whole plaintext is encrypted, doby computes and appends the HMAC to the
 ```rust
 output.write(hmac.digest());
 ```
+
+So here is what an encrypted file layout looks like:
+
+<table>
+  <tr>
+    <th align="left">Magic bytes</th>
+    <td>4 bytes</td>
+  </tr>
+  <tr>
+    <th align="left">Salt</th>
+    <td>64 bytes</td>
+  </tr>
+  <tr>
+    <th align="left" rowspan="3">Argon2 parameters</th>
+    <td>Time cost: 4 bytes</td>
+  </tr>
+  <tr>
+    <td>Memory cost: 4 bytes</td>
+  </tr>
+  <tr>
+    <td>Parallelism cost: 1 byte</td>
+  </tr>
+  <tr>
+    <th align="left">Encryption cipher</th>
+    <td>1 byte</td>
+  </tr>
+  <tr>
+    <th align="left">Ciphertext</th>
+    <td>Exact same size as the plaintext</td>
+  </tr>
+  <tr>
+    <th align="left">HMAC</th>
+    <td>64 bytes</td>
+  </tr>
+</table>
 
 ### Decryption
 
