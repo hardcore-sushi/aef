@@ -139,13 +139,13 @@ impl DobyCipher {
                 let password = password.unwrap_or_ask();
                 argon2.hash_password_into(password.as_bytes(), &params.salt, &mut master_key).zeroize(password)?;
                 let hkdf = Hkdf::<blake2::Blake2b>::new(Some(&params.salt), &master_key);
+                master_key.zeroize();
                 let mut nonce = vec![0; params.cipher.get_nonce_size()];
                 hkdf.expand(b"doby_nonce", &mut nonce).unwrap();
                 let mut encryption_key = [0; KEY_LEN];
                 hkdf.expand(b"doby_encryption_key", &mut encryption_key).unwrap();
                 let mut authentication_key = [0; KEY_LEN];
                 hkdf.expand(b"doby_authentication_key", &mut authentication_key).unwrap();
-                master_key.zeroize();
 
                 let mut encoded_params = Vec::with_capacity(EncryptionParams::LEN);
                 params.write(&mut encoded_params).unwrap();

@@ -2,7 +2,7 @@
 
 Secure symmetric encryption from the command line.
 
-doby started as a fork of [aef](https://github.com/wyhaya/aef) by [wyhaya](https://github.com/wyhaya). It aims to replace the [ccrypt](http://ccrypt.sourceforge.net) tool which is a bit old and not very secure.
+doby started as a fork of [aef](https://github.com/wyhaya/aef) by [wyhaya](https://github.com/wyhaya) with the goal of becoming the fastest and most lightweight CLI utility for symmetric encryption. It aims to replace the old [ccrypt](http://ccrypt.sourceforge.net) tool which doesn't seem to be very secure.
 
 # Features
 
@@ -101,7 +101,7 @@ sha256sum <doby binary file>
 ```
 Compare this output and the hash in the PGP-signed message. __Don't execute the file if the hashes don't match!__
 
-You can make available doby in your `$PATH` by running:
+You can make doby available in your `$PATH` by running:
 ```bash
 sudo cp <doby binary file> /usr/local/bin/
 ```
@@ -145,6 +145,8 @@ let nonce: [u8; 16] = hkdf.expand(b"doby_nonce"); //(16 bytes for AES-CTR, 24 fo
 let encryption_key: [u8; 32] = hkdf.expand(b"doby_encryption_key");
 let authentication_key: [u8; 32] = hkdf.expand(b"doby_authentication_key");
 ```
+
+NOTE: To reduce the size of the header, the `nonce` is derived from the `master_key` instead of being generated purely at random then stored in the encrypted file.
 
 Next, doby initializes a [BLAKE2b](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2) HMAC with `authentication_key` and add all public encryption parameters to it.
 
@@ -257,3 +259,13 @@ hmac.digest() == last_64_bytes_read // the default blake2b output size is 64 byt
 If the verification success, the file is successfully decrypted and authenticated.
 
 _If you find any weakness or security issue is this protocol, please open an issue._
+
+## Why not using authenticated encryption such as AES-GCM instead of AES-CTR + HMAC ?
+
+In order to encrypt data larger than memory, we need to split the plaintext into severavl smaller chunks and encrypt each of these chunks one by one. With authenticated encryption such as AES-GCM, this involves adding an authentication tag to each chunk. As a result, the final ciphertext size would be:
+```
+ciphertext size = plaintext size + (number of chunks ྾ tag size)
+```
+For example, a 50MB file encrypted with AES-GCM by chunks of 64KiB would be 12.2KB larger than the original plaintext, just to authenticate the file.
+
+doby solves this problem by performing authentication independently of encryption. By using AES-CTR, the ciphertext remains the same size as the plaintext. The HMAC can be computed incrementally, one chunk at a time. Only one hash needs to be included in the final file. Thus, doby encrypted files are only 142 bytes larger than the plaintext, no matter how big the original file is.
