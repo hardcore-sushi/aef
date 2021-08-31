@@ -96,11 +96,11 @@ pub fn parse() -> Option<CliArgs> {
 
     let cipher = app
         .value_of("cipher")
-        .and_then(|s| Some(if s.to_lowercase() == "aes" {
+        .map(|s| if s.to_lowercase() == "aes" {
                 CipherAlgorithm::AesCtr
             } else {
                 CipherAlgorithm::XChaCha20
-            })
+            }
         )
         .unwrap_or_else(|| if aes_ni::get() {
                 CipherAlgorithm::AesCtr

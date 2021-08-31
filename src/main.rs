@@ -16,9 +16,6 @@ fn run() -> bool {
         let mut magic_bytes = vec![0; MAGIC_BYTES.len()];
         match reader.read(&mut magic_bytes) {
             Ok(n) => {
-                if n < magic_bytes.len() {
-                    magic_bytes.truncate(n);
-                }
                 if magic_bytes == MAGIC_BYTES && !cli_args.force_encrypt { //we probably want to decrypt
                     match EncryptionParams::read(&mut reader) {
                         Ok(params) => {
@@ -55,7 +52,7 @@ fn run() -> bool {
                                 &params,
                                 cipher,
                                 cli_args.block_size, 
-                                Some(magic_bytes)
+                                Some(&magic_bytes[..n])
                             ) {
                                 Ok(_) => success = true,
                                 Err(e) => eprintln!("I/O error while encrypting: {}", e)

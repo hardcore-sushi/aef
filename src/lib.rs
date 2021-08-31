@@ -17,7 +17,7 @@ impl Password {
 
 impl From<Option<&str>> for Password {
     fn from(s: Option<&str>) -> Self {
-        Self(s.map(|s| String::from(s)))
+        Self(s.map(String::from))
     }
 }
 
@@ -66,7 +66,7 @@ impl<P: AsRef<Path>> Write for LazyWriter<P> {
     }
 }
 
-pub fn encrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, params: &EncryptionParams, mut cipher: DobyCipher, block_size: usize, already_read: Option<Vec<u8>>) -> io::Result<()> {
+pub fn encrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, params: &EncryptionParams, mut cipher: DobyCipher, block_size: usize, already_read: Option<&[u8]>) -> io::Result<()> {
     writer.write_all(MAGIC_BYTES)?;
     params.write(writer)?;
     let mut buff = vec![0; block_size];
@@ -97,7 +97,7 @@ pub fn decrypt<R: Read, W: Write>(reader: &mut R, writer: &mut W, mut cipher: Do
         if n == 0 {
             break;
         } else {
-           writer.write(&buff[..n])?;
+           writer.write_all(&buff[..n])?;
         }
     }
     Ok(cipher.verify_hmac())
