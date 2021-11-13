@@ -1,11 +1,6 @@
-use std::{
-    path::Path,
-    fs::File,
-    str::FromStr,
-    io::{stdin, stdout, Read},
-};
+use std::{fs::File, io::{self, Read, stdin, stdout}, path::Path, str::FromStr};
 use clap::{crate_name, crate_version, App, Arg, AppSettings};
-use crate::{LazyWriter, WrappedPassword, crypto::CipherAlgorithm};
+use crate::{WrappedWriter, WrappedPassword, crypto::CipherAlgorithm};
 
 cpufeatures::new!(aes_ni, "aes");
 
@@ -16,10 +11,27 @@ pub struct CliArgs {
     pub cipher: CipherAlgorithm,
     pub block_size: usize,
     pub reader: Box<dyn Read>,
-    pub writer: LazyWriter<String>,
+    pub writer: WrappedWriter<String>,
 }
 
-pub fn parse() -> Option<CliArgs> {
+pub struct ParseResult {
+    pub error: bool,
+    pub cli_args: Option<CliArgs>,
+}
+
+impl ParseResult {
+    fn exited() -> Self {
+        Self { error: false, cli_args: None }
+    }
+}
+
+impl From<CliArgs> for ParseResult {
+    fn from(args: CliArgs) -> Self {
+        ParseResult { error: false, cli_args: Some(args) }
+    }
+}
+
+pub fn parse() -> Option<ParseResult> {
     let app = App::new(crate_name!())
         .version(crate_version!())
         .setting(AppSettings::ColoredHelp)
@@ -27,10 +39,16 @@ pub fn parse() -> Option<CliArgs> {
         .arg(Arg::with_name("INPUT").help("<PATH> | \"-\" or empty for stdin"))
         .arg(Arg::with_name("OUTPUT").help("<PATH> | \"-\" or empty for stdout"))
         .arg(
-            Arg::with_name("force-encrypt")
+            Arg::with_name("1_force_encrypt")
                 .short("f")
                 .long("force-encrypt")
                 .help(&format!("Encrypt even if {} format is recognized", crate_name!()))
+        )
+        .arg(
+            Arg::with_name("2_interactive")
+                .short("i")
+                .long("interactive")
+                .help("Prompt before overwriting files")
         )
         .arg(
             Arg::with_name("1_password")
@@ -42,7 +60,7 @@ pub fn parse() -> Option<CliArgs> {
             Arg::with_name("2_t_cost")
                 .short("t")
                 .long("time-cost")
-                .value_name("number of iterations")
+                .value_name("iterations")
                 .help("Argon2 time cost")
                 .default_value("10")
         )
@@ -50,7 +68,7 @@ pub fn parse() -> Option<CliArgs> {
             Arg::with_name("3_m_cost")
                 .short("m")
                 .long("memory-cost")
-                .value_name("memory cost")
+                .value_name("memory size")
                 .help("Argon2 memory cost (in kilobytes)")
                 .default_value("4096")
         )
@@ -58,7 +76,7 @@ pub fn parse() -> Option<CliArgs> {
             Arg::with_name("4_p_cost")
                 .short("p")
                 .long("parallelism")
-                .value_name("degree of parallelism")
+                .value_name("threads")
                 .help("Argon2 parallelism cost")
                 .default_value("4")
         )
@@ -126,28 +144,37 @@ pub fn parse() -> Option<CliArgs> {
             None => Box::new(stdin())
         };
 
-    let output = app
+    let wrapped_writer = match app
         .value_of("OUTPUT")
-        .and_then(|s| if s == "-" { None } else { Some(s) })
-        .map(|s| {
-            if Path::new(s).exists() {
-                eprintln!("WARNING: {} already exists", s);
-                None
-            } else {
-                Some(LazyWriter::from_path(s.to_owned()))
+        .and_then(|s| if s == "-" { None } else { Some(s) }) {
+            Some(path) => {
+                if {
+                    if app.is_present("2_interactive") && Path::new(path).exists() {
+                        eprint!("Warning: {} already exists. Overwrite [y/N]? ", path);
+                        let mut c = String::with_capacity(2);
+                        io::stdin().read_line(&mut c).unwrap();
+                        !c.is_empty() && c.chars().nth(0).unwrap() == 'y'
+                    } else {
+                        true
+                    }
+                } {
+                    WrappedWriter::from_path(path.to_string())
+                } else {
+                    return Some(ParseResult::exited())
+                }
             }
-        })
-        .unwrap_or_else(|| Some(LazyWriter::from_writer(stdout())))?;
+            None => WrappedWriter::from_writer(stdout())
+        };
 
     Some(CliArgs {
         password: app.value_of("1_password").into(),
-        force_encrypt: app.is_present("force-encrypt"),
+        force_encrypt: app.is_present("1_force_encrypt"),
         argon2_params: params,
         cipher,
         block_size,
         reader: input,
-        writer: output,
-    })
+        writer: wrapped_writer,
+    }.into())
 }
 
 fn number<T: FromStr>(val: &str) -> Option<T> {

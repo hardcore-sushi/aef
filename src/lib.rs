@@ -1,7 +1,7 @@
 pub mod cli;
 pub mod crypto;
 
-use std::{fs::File, path::Path, io::{self, Read, Write}};
+use std::{fmt::Display, fs::OpenOptions, io::{self, BufWriter, Read, Write}, path::Path};
 use crypto::{DobyCipher, EncryptionParams};
 use zeroize::Zeroize;
 
@@ -36,37 +36,33 @@ impl From<Option<&str>> for WrappedPassword {
         Self(s.map(String::from))
     }
 }
-
-pub struct LazyWriter<P: AsRef<Path>> {
-    path: Option<P>,
-    writer: Option<Box<dyn Write>>,
+pub enum WrappedWriter<P: AsRef<Path>> {
+    PATH {
+        path: P
+    },
+    WRITER {
+        writer: Box<dyn Write>
+    }
 }
 
-impl<P: AsRef<Path>> LazyWriter<P> {
+impl<P: AsRef<Path> + Display> WrappedWriter<P> {
     fn from_path(path: P) -> Self {
-        Self {
-            path: Some(path),
-            writer: None,
-        }
+        Self::PATH { path }
     }
+
     fn from_writer<T: 'static + Write>(writer: T) -> Self {
-        Self {
-            path: None,
-            writer: Some(Box::new(writer)),
-        }
-    }
-}
-
-impl<P: AsRef<Path>> Write for LazyWriter<P> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        if self.writer.is_none() {
-            self.writer = Some(Box::new(File::create(self.path.as_ref().unwrap()).unwrap()));
-        }
-        self.writer.as_mut().unwrap().write(buf)
+        Self::WRITER { writer: Box::new(writer) }
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        self.writer.as_mut().unwrap().flush()
+    pub fn into_buf_writer(self) -> Option<BufWriter<Box<dyn Write>>> {
+        Some(BufWriter::new(match self {
+            Self::PATH { path } => Box::new(
+                OpenOptions::new().write(true).create(true).truncate(true).open(path.as_ref())
+                    .map_err(|e| eprintln!("{}: {}", path, e))
+                    .ok()?
+            ) as Box<dyn Write>,
+            Self::WRITER { writer } => writer,
+        }))
     }
 }
 
