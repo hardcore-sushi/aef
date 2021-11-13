@@ -42,17 +42,17 @@ cat my-super-secret-logs-file.log | doby - logs.doby
 
 Speicfy password from the command line:
 ```bash
-doby -p "A super very ultra strong passphrase" my-super-secret-document.pdf document.doby
+doby --password "A super very ultra strong passphrase" my-super-secret-document.pdf document.doby
 ```
 
 Double encryption:
 ```bash
-doby -p "first password" my-super-secret-database.db | doby -f - double-encrypted.doby
+doby --password "first password" my-super-secret-database.db | doby -f - double-encrypted.doby
 ```
 
 Increase password brute-force resistance:
 ```bash
-echo "you-will-never-break-this" | doby --memory-cost 524288 --threads 16 --iterations 40 > my-super-secret-password.doby
+echo "you-will-never-break-this" | doby --memory-cost 524288 --parallelism 16 --time-cost 40 > my-super-secret-password.doby
 ```
 
 ## Full Options
@@ -63,14 +63,15 @@ USAGE:
 
 FLAGS:
     -f, --force-encrypt    Encrypt even if doby format is recognized
+    -i, --interactive      Prompt before overwriting files
     -h, --help             Prints help information
     -V, --version          Prints version information
 
 OPTIONS:
-    -p, --password <password>          Password used to derive encryption keys
-    -i, --iterations <iterations>      Argon2 time cost [default: 10]
-    -m, --memory-cost <memory cost>    Argon2 memory cost (in kilobytes) [default: 4096]
-    -t, --threads <threads>            Argon2 parallelism (between 1 and 255) [default: 4]
+        --password <password>          Password used to derive encryption keys
+    -t, --time-cost <iterations>       Argon2 time cost [default: 10]
+    -m, --memory-cost <memory size>    Argon2 memory cost (in kilobytes) [default: 4096]
+    -p, --parallelism <threads>        Argon2 parallelism cost [default: 4]
     -b, --block-size <blocksize>       Size of the I/O buffer (in bytes) [default: 65536]
     -c, --cipher <cipher>              Encryption cipher to use [possible values: aes, xchacha20]
 
