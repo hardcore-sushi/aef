@@ -6,6 +6,7 @@ use doby::{
     decrypt,
     encrypt,
 };
+use zeroize::Zeroize;
 
 fn run() -> bool {
     let mut success = false;
@@ -21,44 +22,42 @@ fn run() -> bool {
                         Ok(params) => {
                             match params {
                                 Some(params) => {
-                                    match DobyCipher::new(cli_args.password, &params) {
-                                        Ok(cipher) => {
-                                            match decrypt(&mut reader, &mut writer, cipher, cli_args.block_size) {
-                                                Ok(verified) => {
-                                                    if verified {
-                                                        success = true
-                                                    } else {
-                                                        eprintln!("WARNING: HMAC verification failed !\nEither your password is incorrect or the ciphertext has been corrupted.\nBe careful, the data could have been altered by an attacker.");
-                                                    }
+                                    if let Some(mut password) = cli_args.password.get(false) {
+                                        let cipher = DobyCipher::new(password.as_bytes(), &params);
+                                        password.zeroize();
+                                        match decrypt(&mut reader, &mut writer, cipher, cli_args.block_size) {
+                                            Ok(verified) => {
+                                                if verified {
+                                                    success = true
+                                                } else {
+                                                    eprintln!("WARNING: HMAC verification failed !\nEither your password is incorrect or the ciphertext has been corrupted.\nBe careful, the data could have been altered by an attacker.");
                                                 }
-                                                Err(e) => eprintln!("I/O error while decrypting: {}", e)
                                             }
+                                            Err(e) => eprintln!("I/O error while decrypting: {}", e)
                                         }
-                                        Err(e) => eprintln!("Invalid argon2 params: {}", e)
                                     }
                                 }
-                                None => eprintln!("Invalid cipher")
+                                None => eprintln!("Invalid parameters")
                             }
                         }
                         Err(e) => eprintln!("I/O error while reading headers: {}", e)
                     }
                 } else { //otherwise, encrypt
                     let params = EncryptionParams::new(cli_args.argon2_params, cli_args.cipher);
-                    match DobyCipher::new(cli_args.password, &params) {
-                        Ok(cipher) => {
-                            match encrypt(
-                                &mut reader,
-                                &mut writer,
-                                &params,
-                                cipher,
-                                cli_args.block_size, 
-                                Some(&magic_bytes[..n])
-                            ) {
-                                Ok(_) => success = true,
-                                Err(e) => eprintln!("I/O error while encrypting: {}", e)
-                            }
+                    if let Some(mut password) = cli_args.password.get(true) {
+                        let cipher = DobyCipher::new(password.as_bytes(), &params);
+                        password.zeroize();
+                        match encrypt(
+                            &mut reader,
+                            &mut writer,
+                            &params,
+                            cipher,
+                            cli_args.block_size,
+                            Some(&magic_bytes[..n])
+                        ) {
+                            Ok(_) => success = true,
+                            Err(e) => eprintln!("I/O error while encrypting: {}", e)
                         }
-                        Err(e) => eprintln!("Invalid argon2 params: {}", e)
                     }
                 }
             }

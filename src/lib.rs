@@ -7,29 +7,33 @@ use zeroize::Zeroize;
 
 pub const MAGIC_BYTES: &[u8; 4] = b"DOBY";
 
-pub struct Password(Option<String>);
+pub struct WrappedPassword(Option<String>);
 
-impl Password {
-    fn unwrap_or_ask(self) -> String {
-        self.0.unwrap_or_else(|| rpassword::read_password_from_tty(Some("Password: ")).unwrap())
+impl WrappedPassword {
+    pub fn get(self, ask_confirm: bool) -> Option<String> {
+        self.0.or_else(|| {
+            let mut password = rpassword::read_password_from_tty(Some("Password: ")).ok()?;
+            if ask_confirm {
+                let mut password_confirm = rpassword::read_password_from_tty(Some("Password (confirm): ")).ok()?;
+                if password == password_confirm {
+                    password_confirm.zeroize();
+                    Some(password)
+                } else {
+                    password.zeroize();
+                    password_confirm.zeroize();
+                    eprintln!("Passwords don't match");
+                    None
+                }
+            } else {
+                Some(password)
+            }
+        })
     }
 }
 
-impl From<Option<&str>> for Password {
+impl From<Option<&str>> for WrappedPassword {
     fn from(s: Option<&str>) -> Self {
         Self(s.map(String::from))
-    }
-}
-
-impl From<&str> for Password {
-    fn from(s: &str) -> Self {
-        Some(s).into()
-    }
-}
-
-impl Zeroize for Password {
-    fn zeroize(&mut self) {
-        self.0.zeroize()
     }
 }
 

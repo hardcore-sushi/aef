@@ -5,14 +5,14 @@ use std::{
     io::{stdin, stdout, Read},
 };
 use clap::{crate_name, crate_version, App, Arg, AppSettings};
-use crate::{LazyWriter, Password, crypto::{ArgonParams, CipherAlgorithm}};
+use crate::{LazyWriter, WrappedPassword, crypto::CipherAlgorithm};
 
 cpufeatures::new!(aes_ni, "aes");
 
 pub struct CliArgs {
-    pub password: Password,
+    pub password: WrappedPassword,
     pub force_encrypt: bool,
-    pub argon2_params: ArgonParams,
+    pub argon2_params: argon2::Params,
     pub cipher: CipherAlgorithm,
     pub block_size: usize,
     pub reader: Box<dyn Read>,
@@ -34,16 +34,15 @@ pub fn parse() -> Option<CliArgs> {
         )
         .arg(
             Arg::with_name("1_password")
-                .short("p")
                 .long("password")
                 .value_name("password")
                 .help("Password used to derive encryption keys")
         )
         .arg(
             Arg::with_name("2_t_cost")
-                .short("i")
-                .long("iterations")
-                .value_name("iterations")
+                .short("t")
+                .long("time-cost")
+                .value_name("number of iterations")
                 .help("Argon2 time cost")
                 .default_value("10")
         )
@@ -56,11 +55,11 @@ pub fn parse() -> Option<CliArgs> {
                 .default_value("4096")
         )
         .arg(
-            Arg::with_name("4_parallelism")
-                .short("t")
-                .long("threads")
-                .value_name("threads")
-                .help("Argon2 parallelism (between 1 and 255)")
+            Arg::with_name("4_p_cost")
+                .short("p")
+                .long("parallelism")
+                .value_name("degree of parallelism")
+                .help("Argon2 parallelism cost")
                 .default_value("4")
         )
         .arg(
@@ -85,14 +84,16 @@ pub fn parse() -> Option<CliArgs> {
     let params = {
         let t_cost = number(app.value_of("2_t_cost").unwrap())?;
         let m_cost =  number(app.value_of("3_m_cost").unwrap())?;
-        let parallelism =  number(app.value_of("4_parallelism").unwrap())?;
+        let p_cost =  number(app.value_of("4_p_cost").unwrap())?;
 
-        ArgonParams {
-            t_cost,
-            m_cost,
-            parallelism,
+        match argon2::Params::new(m_cost, t_cost, p_cost, None) {
+            Ok(params) => Some(params),
+            Err(e) => {
+                eprintln!("Invalid Argon2 parameters: {}", e);
+                None
+            }
         }
-    };
+    }?;
 
     let cipher = app
         .value_of("cipher")

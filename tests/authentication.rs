@@ -1,7 +1,6 @@
 use rand::Rng;
 use doby::{
     crypto::{
-        ArgonParams,
         CipherAlgorithm,
         EncryptionParams,
         DobyCipher,
@@ -19,15 +18,14 @@ fn different_elements<T: Eq>(v1: &Vec<T>, v2: &Vec<T>) -> usize {
 fn authentication() {
     const BLOCK_SIZE: usize = 65536;
     const PLAINTEXT: &[u8; 13] = b"the plaintext";
-    const CIPHERTEXT_SIZE: usize = PLAINTEXT.len()+142;
+    const CIPHERTEXT_SIZE: usize = PLAINTEXT.len()+145;
     const PASSWORD: &str = "the password";
-    let params = EncryptionParams::new(ArgonParams {
-        t_cost: 1,
-        m_cost: 8,
-        parallelism: 1,
-    }, CipherAlgorithm::AesCtr);
+    let params = EncryptionParams::new(
+        argon2::Params::new(8, 1, 1, None).unwrap(),
+        CipherAlgorithm::AesCtr
+    );
 
-    let encrypter = DobyCipher::new(PASSWORD.into(), &params).unwrap();
+    let encrypter = DobyCipher::new(PASSWORD.as_bytes(), &params);
     let mut ciphertext = Vec::with_capacity(CIPHERTEXT_SIZE);
     encrypt(&mut &PLAINTEXT[..], &mut ciphertext, &params, encrypter, BLOCK_SIZE, None).unwrap();
     assert_eq!(ciphertext.len(), CIPHERTEXT_SIZE);
@@ -38,13 +36,13 @@ fn authentication() {
             compromised[i] = rand::thread_rng().gen();
         }
         assert_eq!(different_elements(&compromised, &ciphertext), 1);
-        let decrypter = DobyCipher::new(PASSWORD.into(), &params).unwrap();
+        let decrypter = DobyCipher::new(PASSWORD.as_bytes(), &params);
         let mut decrypted = Vec::with_capacity(PLAINTEXT.len());
         let verified = decrypt(&mut &compromised[..], &mut decrypted, decrypter, BLOCK_SIZE).unwrap();
         assert_eq!(verified, false);
     }
 
-    let decrypter = DobyCipher::new(PASSWORD.into(), &params).unwrap();
+    let decrypter = DobyCipher::new(PASSWORD.as_bytes(), &params);
     let mut decrypted = Vec::with_capacity(PLAINTEXT.len());
     let verified = decrypt(&mut &ciphertext[4+EncryptionParams::LEN..], &mut decrypted, decrypter, BLOCK_SIZE).unwrap();
     assert_eq!(decrypted, PLAINTEXT);

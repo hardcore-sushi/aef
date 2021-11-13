@@ -10,12 +10,12 @@ fn main() -> io::Result<()> {
     if magic_bytes == MAGIC_BYTES {
         match EncryptionParams::read(&mut file)? {
             Some(params) => {
-                println!("Argon2 time cost: {}", params.argon2.t_cost);
-                println!("Argon2 memory cost: {}KB", params.argon2.m_cost);
-                println!("Argon2 parallelism: {}", params.argon2.parallelism);
+                println!("Argon2 time cost: {}", params.argon2.t_cost());
+                println!("Argon2 memory cost: {}KB", params.argon2.m_cost());
+                println!("Argon2 parallelism cost: {}", params.argon2.p_cost());
                 println!("Encryption cihpher: {}", params.cipher);
             }
-            None => eprintln!("Invalid cipher")
+            None => eprintln!("Invalid parameters")
         }
     } else {
         eprintln!("Doby format not recognized.");
