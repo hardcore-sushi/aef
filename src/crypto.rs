@@ -1,8 +1,9 @@
 use std::{convert::TryFrom, fmt::{self, Display, Formatter}, io::{self, Read, Write}};
+use blake2::{Blake2b, VarBlake2b, digest::{Update, VariableOutput}};
 use num_enum::TryFromPrimitive;
 use chacha20::XChaCha20;
 use aes::{Aes256Ctr, cipher::{NewCipher, StreamCipher}};
-use hmac::{Hmac, Mac, NewMac};
+use subtle::ConstantTimeEq;
 use rand::{Rng, rngs::OsRng};
 use argon2::{Argon2, Version, Algorithm};
 use hkdf::Hkdf;
@@ -11,7 +12,7 @@ use zeroize::Zeroize;
 pub const SALT_LEN: usize = 64;
 const AES_NONCE_LEN: usize = 16;
 const XCHACHA20_NONCE_LEN: usize = 24;
-pub const HASH_LEN: usize = 64;
+pub const HMAC_LEN: usize = 32;
 const KEY_LEN: usize = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, TryFromPrimitive)]
@@ -99,7 +100,7 @@ impl EncryptionParams {
 
 pub struct DobyCipher {
     cipher: Box<dyn StreamCipher>,
-    hmac: Hmac<blake2::Blake2b>,
+    hasher: VarBlake2b,
     buffer: Vec<u8>,
 }
 
@@ -108,7 +109,7 @@ impl DobyCipher {
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params.argon2.clone());
         let mut master_key = [0; KEY_LEN];
         argon2.hash_password_into(password, &params.salt, &mut master_key).unwrap();
-        let hkdf = Hkdf::<blake2::Blake2b>::new(Some(&params.salt), &master_key);
+        let hkdf = Hkdf::<Blake2b>::new(Some(&params.salt), &master_key);
         master_key.zeroize();
         let mut nonce = vec![0; params.cipher.get_nonce_size()];
         hkdf.expand(b"doby_nonce", &mut nonce).unwrap();
@@ -119,9 +120,9 @@ impl DobyCipher {
 
         let mut encoded_params = Vec::with_capacity(EncryptionParams::LEN);
         params.write(&mut encoded_params).unwrap();
-        let mut hmac = Hmac::new_from_slice(&authentication_key).unwrap();
+        let mut hasher = VarBlake2b::new_keyed(&authentication_key, HMAC_LEN);
         authentication_key.zeroize();
-        hmac.update(&encoded_params);
+        hasher.update(&encoded_params);
 
         let cipher: Box<dyn StreamCipher> = match params.cipher {
             CipherAlgorithm::AesCtr => Box::new(Aes256Ctr::new_from_slices(&encryption_key, &nonce).unwrap()),
@@ -131,20 +132,19 @@ impl DobyCipher {
 
         Self {
             cipher,
-            hmac,
+            hasher,
             buffer: Vec::new(),
         }
     }
 
     pub fn encrypt_chunk<W: Write>(&mut self, buff: &mut [u8], writer: &mut W) -> io::Result<()> {
         self.cipher.apply_keystream(buff);
-        self.hmac.update(buff);
+        self.hasher.update(&buff);
         writer.write_all(buff)
     }
 
-    pub fn write_hmac<W: Write>(self, writer: &mut W) -> io::Result<usize> {
-        let tag = self.hmac.finalize().into_bytes();
-        writer.write(&tag)
+    pub fn write_hmac<W: Write>(self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.hasher.finalize_boxed())
     }
 
     //buff size must be > to HASH_LEN
@@ -153,27 +153,27 @@ impl DobyCipher {
         buff[..buffer_len].clone_from_slice(&self.buffer);
         let read = reader.read(&mut buff[buffer_len..])?;
 
-        let n = if buffer_len + read >= HASH_LEN {
+        let n = if buffer_len + read >= HMAC_LEN {
             self.buffer.clear();
-            buffer_len + read - HASH_LEN
+            buffer_len + read - HMAC_LEN
         } else {
             0
         };
         self.buffer.extend_from_slice(&buff[n..buffer_len+read]);
         
-        self.hmac.update(&buff[..n]);
+        self.hasher.update(&buff[..n]);
         self.cipher.apply_keystream(&mut buff[..n]);
         Ok(n)
     }
 
     pub fn verify_hmac(self) -> bool {
-        self.hmac.verify(&self.buffer).is_ok()
+        self.hasher.finalize_boxed().ct_eq(&self.buffer).into()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CipherAlgorithm, EncryptionParams, DobyCipher, HASH_LEN};
+    use super::{CipherAlgorithm, EncryptionParams, DobyCipher, HMAC_LEN};
     #[test]
     fn encryption_params() {
         let params = EncryptionParams::new(
@@ -204,17 +204,17 @@ mod tests {
         let password = "I like spaghetti";
         let plaintext = b"but I love so much to listen to HARDCORE music on big subwoofer";
         let mut buff: [u8; 63] = *plaintext;
-        let mut vec = Vec::with_capacity(buff.len()+HASH_LEN);
+        let mut vec = Vec::with_capacity(buff.len()+HMAC_LEN);
 
         let mut enc_cipher = DobyCipher::new(password.as_bytes(), &params);
         enc_cipher.encrypt_chunk(&mut buff, &mut vec).unwrap();
         assert_ne!(buff, *plaintext);
         assert_eq!(buff, vec.as_slice());
-        assert_eq!(enc_cipher.write_hmac(&mut vec).unwrap(), HASH_LEN);
-        assert_eq!(vec.len(), buff.len()+HASH_LEN);
+        assert!(enc_cipher.write_hmac(&mut vec).is_ok());
+        assert_eq!(vec.len(), buff.len()+HMAC_LEN);
 
         let mut dec_cipher = DobyCipher::new(password.as_bytes(), &params);
-        let mut decrypted = vec![0; buff.len()+HASH_LEN];
+        let mut decrypted = vec![0; buff.len()+HMAC_LEN];
         let mut n  = dec_cipher.decrypt_chunk(&mut vec.as_slice(), &mut decrypted[..]).unwrap();
         assert_eq!(n, buff.len());
         n = dec_cipher.decrypt_chunk(&mut &vec[n..], &mut decrypted[n..]).unwrap();

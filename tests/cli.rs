@@ -1,7 +1,7 @@
 use std::{convert::TryInto, fs::{self, File, create_dir}, io::{self, Read, Write}, path::PathBuf};
 use assert_cmd::{Command, cargo::{CargoError, cargo_bin}};
 use tempfile::TempDir;
-use doby::crypto::{CipherAlgorithm, SALT_LEN, HASH_LEN};
+use doby::crypto::{CipherAlgorithm, SALT_LEN, HMAC_LEN};
 
 const PLAINTEXT: &[u8] = b"the plaintext";
 const PASSWORD: &str = "the password";
@@ -85,7 +85,7 @@ fn force_encrypt() -> io::Result<()> {
     let buff_ciphertext_2 = fs::read(&tmp_ciphertext_2)?;
     assert_ne!(buff_ciphertext_1, buff_ciphertext_2);
     assert_ne!(buff_ciphertext_2, PLAINTEXT);
-    assert!(buff_ciphertext_2.len() >= buff_ciphertext_1.len()+142);
+    assert!(buff_ciphertext_2.len() >= buff_ciphertext_1.len()+113);
 
     let tmp_decrypted_1 = tmp_path.join("decrypted_1");
     doby_cmd().unwrap().arg(tmp_ciphertext_2).arg(&tmp_decrypted_1).assert().success().stdout("").stderr("");
@@ -108,7 +108,7 @@ fn test_cipher(cipher_str: &str, cipher_algorithm: CipherAlgorithm) -> io::Resul
 
     let ciphertext = fs::read(&tmp_ciphertext)?;
     assert_eq!(ciphertext[4+SALT_LEN+4*3], cipher_algorithm as u8);
-    assert_eq!(ciphertext.len(), PLAINTEXT.len()+17+SALT_LEN+HASH_LEN);
+    assert_eq!(ciphertext.len(), PLAINTEXT.len()+17+SALT_LEN+HMAC_LEN);
 
     doby_cmd().unwrap().arg(tmp_ciphertext).assert().success().stdout(PLAINTEXT).stderr("");
 

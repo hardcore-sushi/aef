@@ -220,10 +220,10 @@ dependencies = [
  "clap",
  "cpufeatures 0.2.1",
  "hkdf",
- "hmac",
  "num_enum",
  "rand",
  "rpassword",
+ "subtle",
  "tempfile",
  "zeroize",
 ]

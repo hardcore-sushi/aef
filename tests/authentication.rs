@@ -18,7 +18,7 @@ fn different_elements<T: Eq>(v1: &Vec<T>, v2: &Vec<T>) -> usize {
 fn authentication() {
     const BLOCK_SIZE: usize = 65536;
     const PLAINTEXT: &[u8; 13] = b"the plaintext";
-    const CIPHERTEXT_SIZE: usize = PLAINTEXT.len()+145;
+    const CIPHERTEXT_SIZE: usize = PLAINTEXT.len()+113;
     const PASSWORD: &str = "the password";
     let params = EncryptionParams::new(
         argon2::Params::new(8, 1, 1, None).unwrap(),

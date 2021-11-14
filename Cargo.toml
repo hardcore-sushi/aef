@@ -21,7 +21,7 @@ num_enum = "0.5"
 cpufeatures = "0.2"
 aes = { version = "0.7", features = ["ctr"] }
 chacha20 = "0.8"
-hmac = "0.11"
+subtle = "2.4"
 blake2 = "0.9"
 hkdf = "0.11"
 argon2 = "0.3"

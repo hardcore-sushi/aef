@@ -9,7 +9,7 @@ doby started as a fork of [aef](https://github.com/wyhaya/aef) by [wyhaya](https
 * Fast: written in [rust](https://www.rust-lang.org), encrypts with [AES-256-CTR](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR)) or [XChaCha20](https://en.wikipedia.org/wiki/Salsa20#XChaCha)
 * [HMAC](https://en.wikipedia.org/wiki/HMAC) ciphertext authentication
 * Password brute-force resistance with [Argon2](https://en.wikipedia.org/wiki/Argon2)
-* Increase the plaintext size of only 142 bytes
+* Increase the plaintext size of only 113 bytes
 * Encryption from STDIN/STDOUT or from files
 * Adjustable performance & secuity parameters
 
@@ -152,9 +152,9 @@ NOTE: To reduce the size of the header, the `nonce` is derived from the `master_
 Next, doby initializes a [BLAKE2b](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2) HMAC with `authentication_key` and add all public encryption parameters to it.
 
 ```rust
-let hmac = Hmac::new(
+let hmac = Blake2b::new_keyed(
     authentication_key,
-    blake2b, //hash function
+    32, //digest size
 );
 hmac.update(random_salt);
 //integers are encoded in big-endian
@@ -217,7 +217,7 @@ So here is what an encrypted file layout looks like:
   </tr>
   <tr>
     <th align="left">HMAC</th>
-    <td>64 bytes</td>
+    <td>32 bytes</td>
   </tr>
 </table>
 
@@ -254,7 +254,7 @@ while n != 0 {
 Once the whole ciphertext is decrypted, doby computes and verifies the HMAC.
 
 ```rust
-hmac.digest() == last_64_bytes_read // the default blake2b output size is 64 bytes
+hmac.digest() == last_32_bytes_read
 ```
 
 If the verification success, the file is successfully decrypted and authenticated.
