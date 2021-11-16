@@ -181,7 +181,7 @@ fn number<T: FromStr>(val: &str) -> Option<T> {
     match val.parse::<T>() {
         Ok(n) => Some(n),
         Err(_) => {
-            eprintln!("Cannot parse '{}' to '{}'", val, std::any::type_name::<T>());
+            eprintln!("Error: '{}' is not a number", val);
             None
         }
     }

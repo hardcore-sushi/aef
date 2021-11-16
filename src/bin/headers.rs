@@ -18,7 +18,7 @@ fn main() -> io::Result<()> {
             None => eprintln!("Invalid parameters")
         }
     } else {
-        eprintln!("Doby format not recognized.");
+        eprintln!("doby format not recognized.");
     }
     Ok(())
 }

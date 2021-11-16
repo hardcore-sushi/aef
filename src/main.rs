@@ -40,7 +40,7 @@ fn run() -> bool {
                                         }
                                     }
                                 } else {
-                                    eprintln!("Invalid parameters")
+                                    eprintln!("Error: invalid encryption parameters")
                                 }
                             }
                             Err(e) => eprintln!("I/O error while reading headers: {}", e)

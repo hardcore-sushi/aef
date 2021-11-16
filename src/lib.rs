@@ -21,7 +21,7 @@ impl WrappedPassword {
                 } else {
                     password.zeroize();
                     password_confirm.zeroize();
-                    eprintln!("Passwords don't match");
+                    eprintln!("Error: passwords don't match");
                     None
                 }
             } else {
