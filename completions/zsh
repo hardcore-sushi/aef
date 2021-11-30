@@ -1,0 +1,19 @@
+#compdef doby
+
+function _doby {
+    _arguments \
+        '(-f --force-encrypt)'{-f,--force-encrypt}'[Encrypt even if doby format is recognized]' \
+        '(-i --interactive)'{-i,--interactive}'[Prompt before overwriting files]' \
+        '(: * -)'{-h,--help}'[Prints help information]' \
+        '(: * -)'{-V,--version}'[Prints version information]' \
+        '--password=[Password used to derive encryption keys]' \
+        '(-t --time-cost)'{-t,--time-cost}'[Argon2 time cost]' \
+        '(-m --memory-cost)'{-m,--memory-cost}'[Argon2 memory cost (in kilobytes)]' \
+        '(-p --parallelism)'{-p,--parallelism}'[Argon2 parallelism cost]' \
+        '(-b --block-size)'{-b,--block-size}'[Size of the I/O buffer (in bytes)]' \
+        '(-c --cipher)'{-c,--cipher}'[Encryption cipher to use]: :(aes xchacha20)' \
+        ':::_files' \
+        ':::_files' \
+}
+
+_doby "$@"

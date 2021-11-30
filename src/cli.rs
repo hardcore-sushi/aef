@@ -31,8 +31,8 @@ impl From<CliArgs> for ParseResult {
     }
 }
 
-pub fn parse() -> Option<ParseResult> {
-    let app = App::new(crate_name!())
+pub fn app<'a>() -> App<'a, 'a> {
+    App::new(crate_name!())
         .version(crate_version!())
         .setting(AppSettings::ColoredHelp)
         .about("Secure symmetric encryption from the command line.")
@@ -42,7 +42,7 @@ pub fn parse() -> Option<ParseResult> {
             Arg::with_name("1_force_encrypt")
                 .short("f")
                 .long("force-encrypt")
-                .help(&format!("Encrypt even if {} format is recognized", crate_name!()))
+                .help(concat!("Encrypt even if ", crate_name!(), " format is recognized"))
         )
         .arg(
             Arg::with_name("2_interactive")
@@ -97,7 +97,10 @@ pub fn parse() -> Option<ParseResult> {
                 .possible_values(&["aes", "xchacha20"])
                 .case_insensitive(true)
         )
-        .get_matches();
+}
+
+pub fn parse() -> Option<ParseResult> {
+    let app = app().get_matches();
 
     let params = {
         let t_cost = number(app.value_of("2_t_cost").unwrap())?;

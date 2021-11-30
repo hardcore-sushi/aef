@@ -1,0 +1,63 @@
+#/usr/bin/env bash
+
+_remove_opts() {
+    local opt new_opts
+    for opt in ${available_opts}; do
+        if [[ $opt != $1 && $opt != $2 ]]; then
+            new_opts+="$opt "
+        fi
+    done
+    available_opts=$new_opts
+}
+
+_doby_completion() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local opts="-f --force-encrypt -i --interactive -h --help -V --version --password -t --time-cost -m --memory-cost -p --parallelism -b --block-size -c --cipher"
+    if [[ ${cur} == -* ]]; then
+        local i available_opts=$opts
+        for i in ${COMP_WORDS[@]}; do
+            if [[ ${opts[*]} =~ $i ]]; then
+                case $i in
+                    "-f"|"--force-encrypt")
+                        _remove_opts "-f" "--force-encrypt"
+                        ;;
+                    "-i"|"--interactive")
+                        _remove_opts "-i" "--interactive"
+                        ;;
+                    "-h"|"--help")
+                        _remove_opts "-h" "--help"
+                        ;;
+                    "-V"|"--version")
+                        _remove_opts "-V" "--version"
+                        ;;
+                    "--password")
+                        _remove_opts "--password"
+                        ;;
+                    "-t"|"--time-cost")
+                        _remove_opts "-t" "--time-cost"
+                        ;;
+                    "-m"|"--memory-cost")
+                        _remove_opts "-m" "--memory-cost"
+                        ;;
+                    "-p"|"--parallelism")
+                        _remove_opts "-p" "--parallelism"
+                        ;;
+                    "-b"|"--block-size")
+                        _remove_opts "-b" "--block-size"
+                        ;;
+                    "-c"|"--cipher")
+                        _remove_opts "-c" "--cipher"
+                        ;;
+                esac
+            fi
+        done
+        COMPREPLY=($(compgen -W "${available_opts}" -- "${cur}"))
+    else
+        local prev="${COMP_WORDS[COMP_CWORD-1]}"
+        if [[ ${prev} == "-c" || ${prev} == "--cipher" ]]; then
+            COMPREPLY=($(compgen -W "aes xchacha20" -- "${cur}"))
+        fi
+    fi
+}
+
+complete -F _doby_completion -o bashdefault -o default doby
