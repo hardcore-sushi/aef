@@ -1,10 +1,10 @@
 [package]
 name = "doby"
-version = "0.2.0"
-edition = "2018"
+version = "0.3.0"
+edition = "2021"
 authors = ["Hardcore Sushi <hardcore.sushi@disroot.org>"]
 license = "GPL-3.0-or-later"
-description = "Secure symmetric encryption from the command line"
+description = "Simple, secure and lightweight symmetric encryption from the command line"
 readme = "README.md"
 
 [profile.release]
