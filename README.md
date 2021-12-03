@@ -11,9 +11,9 @@ doby started as a fork of [aef](https://github.com/wyhaya/aef) by [wyhaya](https
 * Password brute-force resistance with [Argon2](https://en.wikipedia.org/wiki/Argon2)
 * Increase the plaintext size of only 113 bytes
 * Encryption from STDIN/STDOUT or from files
-* Adjustable performance & secuity parameters
+* Adjustable performance & security parameters
 
-# Disclamer
+# Disclaimer
 doby is provided "as is", without any warranty of any kind. I'm not a professional cryptographer. This program didn't receive any security audit and therefore __shouldn't be considered fully secure__.
 
 # Usage
@@ -28,7 +28,7 @@ Decryption:
 doby encrypted.doby decrypted.rs
 ```
 
-If you ommit file path or use `-`, doby operates from `stdin/stdout`:
+If you omit file path or use `-`, doby operates from `stdin/stdout`:
 ```bash
 # Read from stdin and write to stdout
 cat my-super-secret-music.flac | doby > encrypted.doby
@@ -40,7 +40,7 @@ doby encrypted.doby > decrypted.flac
 cat my-super-secret-logs-file.log | doby - logs.doby
 ```
 
-Speicfy password from the command line:
+Specify password from the command line:
 ```bash
 doby --password "A super very ultra strong passphrase" my-super-secret-document.pdf document.doby
 ```
@@ -275,7 +275,7 @@ _If you find any weakness or security issue is this protocol, please open an iss
 
 ## Why not using authenticated encryption such as AES-GCM instead of AES-CTR + HMAC ?
 
-In order to encrypt data larger than memory, we need to split the plaintext into severavl smaller chunks and encrypt each of these chunks one by one. With authenticated encryption such as AES-GCM, this involves adding an authentication tag to each chunk. As a result, the final ciphertext size would be:
+In order to encrypt data larger than memory, we need to split the plaintext into several smaller chunks and encrypt each of these chunks one by one. With authenticated encryption such as AES-GCM, this involves adding an authentication tag to each chunk. As a result, the final ciphertext size would be:
 ```
 ciphertext size = plaintext size + (number of chunks ྾ tag size)
 ```

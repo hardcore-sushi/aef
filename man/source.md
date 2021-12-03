@@ -11,7 +11,7 @@ doby [**-h** | **\--help**]
 doby [**-V** | **\--version**]
 
 # DESCRIPTION
-doby aims to be a small, fast and user-friendly command line tool for symmectric encryption of single files. It uses modern cryptography and (obviously) it's built in rust.
+doby aims to be a small, fast and user-friendly command line tool for symmetric encryption of single files. It uses modern cryptography and (obviously) it's built in rust.
 
 doby can operate with files larger than memory but also from stdout/stdin. In addition to encrypt files, doby also use HMAC cryptography to authenticate the data. This means that encrypted files can't be tampered. Encryptions keys are derived from the user password using Argon2, an expensive KDF function that slows down a lot brute force attacks. You can find more details about cryptography on the doby's repository: https://forge.chapril.org/hardcoresushi/doby#cryptographic-details
 
