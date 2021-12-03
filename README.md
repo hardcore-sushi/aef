@@ -1,6 +1,6 @@
 # doby
 
-Secure symmetric encryption from the command line.
+Simple, secure and lightweight symmetric encryption from the command line
 
 doby started as a fork of [aef](https://github.com/wyhaya/aef) by [wyhaya](https://github.com/wyhaya) with the goal of becoming a simple, fast and lightweight CLI utility for symmetric encryption. It aims to be an alternative to the old [ccrypt](http://ccrypt.sourceforge.net) tool by using modern cryptography and authenticated encryption.
 
@@ -83,7 +83,7 @@ ARGS:
 # Installation
 You can download doby from the "Releases" section in this repo.
 
-All binaries MUST be signed with my PGP key available on keyservers. To import it:
+All releases MUST be signed with my PGP key available on keyservers. To import it:
 ```bash
 gpg --keyserver hkp://pool.sks-keyservers.net --recv-keys 007F84120107191E
 ```
@@ -96,15 +96,25 @@ gpg --verify <the file>
 ```
 __Don't continue if the verification fails!__
 
-If everything goes fine, you can compute the SHA-256 hash of the binary file you want to verify:
+If everything goes fine, you can download the package corresponding to your distribution. To verify it, compute its SHA-256 hash:
 ```bash
-sha256sum <doby binary file>
+sha256sum <file>
 ```
-Compare this output and the hash in the PGP-signed message. __Don't execute the file if the hashes don't match!__
+Compare the output and the hash in the PGP-signed message. If the hashes match, the file is authenticated and you can continue the installation.
 
-You can make doby available in your `$PATH` by running:
+On debian:
 ```bash
-sudo cp <doby binary file> /usr/local/bin/
+sudo dpkg -i doby-*.deb
+```
+
+On Arch:
+```bash
+sudo pacman -U doby-*.pkg.tar.zst
+```
+
+On other distros:
+```bash
+tar -xzf doby-*.tar.gz && sudo doby/install.sh
 ```
 
 # Build

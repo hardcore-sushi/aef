@@ -1,0 +1,7 @@
+Package: doby
+Version: VERSION
+Depends: libc6
+Homepage: https://forge.chapril.org/hardcoresushi/doby
+Maintainer: Hardcore Sushi <hardcore.sushi@disroot.org>
+Architecture: amd64
+Description: Simple, secure and lightweight symmetric encryption from the command line

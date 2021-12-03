@@ -6,6 +6,7 @@ authors = ["Hardcore Sushi <hardcore.sushi@disroot.org>"]
 license = "GPL-3.0-or-later"
 description = "Simple, secure and lightweight symmetric encryption from the command line"
 readme = "README.md"
+repository = "https://forge.chapril.org/hardcoresushi/doby"
 
 [profile.release]
 lto = true

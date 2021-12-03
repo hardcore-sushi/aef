@@ -1,0 +1,18 @@
+# Maintainer: Hardcore Sushi <hardcore.sushi@disroot.org>
+pkgname=doby
+pkgver=VERSION
+pkgrel=0
+depends=("glibc")
+arch=("x86_64")
+pkgdesc="Simple, secure and lightweight symmetric encryption from the command line"
+url="https://forge.chapril.org/hardcoresushi/doby"
+license=("GPL-3.0-or-later")
+
+package() {
+	mkdir -p $pkgdir/usr/bin $pkgdir/usr/share/man/man1 \
+	$pkgdir/usr/share/bash-completion/completions $pkgdir/usr/share/zsh/vendor-completions
+	cp $srcdir/doby $pkgdir/usr/bin
+	cp $srcdir/doby.1.gz $pkgdir/usr/share/man/man1
+	cp $srcdir/completions/bash $pkgdir/usr/share/bash-completion/completions/doby
+	cp $srcdir/completions/zsh $pkgdir/usr/share/zsh/vendor-completions/_doby
+}
