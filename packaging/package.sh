@@ -13,7 +13,7 @@ package_deb() {(
     mkdir -p deb/doby/usr/bin deb/doby/usr/share/man/man1 \
     deb/doby/usr/share/bash-completion/completions \
     deb/doby/usr/share/zsh/vendor-completions &&
-    cp ../target/release/doby deb/doby/usr/bin &&
+    strip -s ../target/release/doby -o deb/doby/usr/bin/doby &&
     cp ../man/doby.1.gz deb/doby/usr/share/man/man1 &&
     cp ../completions/bash deb/doby/usr/share/bash-completion/completions/doby &&
     cp ../completions/zsh deb/doby/usr/share/zsh/vendor-completions/_doby &&
@@ -24,7 +24,7 @@ package_deb() {(
 
 package_pkg() {(
     mkdir pkg/src &&
-    cp ../target/release/doby pkg/src &&
+    strip -s ../target/release/doby -o pkg/src/doby &&
     cp ../man/doby.1.gz pkg/src &&
     cp -r ../completions pkg/src &&
     cd pkg && set_version PKGBUILD &&
@@ -33,7 +33,7 @@ package_pkg() {(
 )}
 
 package_tarball() {(
-    cp ../target/x86_64-unknown-linux-musl/release/doby tarball/doby &&
+    strip -s ../target/x86_64-unknown-linux-musl/release/doby -o tarball/doby/doby &&
     cp ../man/doby.1.gz tarball/doby &&
     cd tarball && tar -chzf ../doby-$version-x86_64.tar.gz doby &&
     rm doby/doby*

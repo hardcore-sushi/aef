@@ -1,6 +1,6 @@
 # doby
 
-Simple, secure and lightweight symmetric encryption from the command line
+Simple, secure and lightweight symmetric encryption from the command line.
 
 doby started as a fork of [aef](https://github.com/wyhaya/aef) by [wyhaya](https://github.com/wyhaya) with the goal of becoming a simple, fast and lightweight CLI utility for symmetric encryption. It aims to be an alternative to the old [ccrypt](http://ccrypt.sourceforge.net) tool by using modern cryptography and authenticated encryption.
 
